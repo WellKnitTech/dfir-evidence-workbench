@@ -1,0 +1,41 @@
+# DFIR Evidence Workbench: approved tools for commercial consulting
+
+Lookup time: 2026-08-06T02:52:11Z (UTC)
+
+## Scope and decision rule
+
+This is a tool-selection/licensing survey for a consulting practice that may charge for analysis, support, and related services. “Approved” means the official project license does not prohibit commercial use or charging for services. GPL/AGPL tools are usable commercially, but distributing the tool, a modified copy, or a network service based on modified AGPL code can trigger source-code, notices, and other copyleft obligations. Apache/BSD tools still require preservation of notices and (for Apache) the license/patent terms. This is an operational screening result, not legal advice.
+
+Versions below are the latest GitHub release tags returned by each project’s official GitHub API/release page at lookup time. License evidence links go to the project’s own repository/license file or the official license text.
+
+## Approved tool set
+
+| Tool | Current version (official release) | Official source / download | License evidence | License type | Free commercial consulting / resale of services? |
+|---|---:|---|---|---|---|
+| The Sleuth Kit (TSK) | 4.15.0 (`sleuthkit-4.15.0`) | [official repository](https://github.com/sleuthkit/sleuthkit) · [release](https://github.com/sleuthkit/sleuthkit/releases/tag/sleuthkit-4.15.0) | [official license inventory](https://github.com/sleuthkit/sleuthkit/blob/develop-4.1x/licenses/README.md) · [Apache-2.0 text](https://github.com/sleuthkit/sleuthkit/blob/develop-4.1x/licenses/Apache-LICENSE-2.0.txt) · [GPLv2 text](https://github.com/sleuthkit/sleuthkit/blob/develop-4.1x/licenses/GNUv2-COPYING) | Mixed, explicitly documented: Apache-2.0, GPL-2.0/GPL-3.0, BSD, MIT, CPL and third-party terms | **Yes, for tool use and services.** The repository identifies the component licenses rather than claiming one blanket license. Preserve the inventory/notices and review third-party terms before redistributing binaries. |
+| Autopsy | 4.23.1 (`autopsy-4.23.1`) | [official repository](https://github.com/sleuthkit/autopsy) · [release](https://github.com/sleuthkit/autopsy/releases/tag/autopsy-4.23.1) · [official download page](https://www.autopsy.com/download/) | [repository Apache License 2.0](https://github.com/sleuthkit/autopsy/blob/develop/LICENSE-2.0.txt) | Apache-2.0 (project code; bundled dependencies may have their own notices) | **Yes.** Apache-2.0 permits commercial use, modification, and distribution subject to its notice, license, and patent terms. Audit bundled third-party notices for redistribution. |
+| YARA | 4.5.8 (`v4.5.8`) | [official repository](https://github.com/VirusTotal/yara) · [release](https://github.com/VirusTotal/yara/releases/tag/v4.5.8) | [repository BSD-3-Clause license](https://github.com/VirusTotal/yara/blob/master/COPYING) | BSD-3-Clause | **Yes.** Retain copyright, license, and disclaimer notices; do not imply endorsement. |
+| bulk_extractor | 2.1.1 (`v2.1.1`) | [official repository](https://github.com/simsong/bulk_extractor) · [release](https://github.com/simsong/bulk_extractor/releases/tag/v2.1.1) | [official license statement](https://github.com/simsong/bulk_extractor/blob/main/LICENSE.md) · [GPLv3 text in repository](https://github.com/simsong/bulk_extractor/blob/main/licenses/LICENSE.GPLv3) | GPL-3.0-or-later for project-authored post-NPS code; original NPS material and third-party components are separately identified | **Yes, for tool use and services.** If distributing it or a modified build, comply with GPLv3 source, notice, and license obligations and the component inventory. |
+| Plaso / log2timeline | 20260512 (`20260512`) | [official repository](https://github.com/log2timeline/plaso) · [release](https://github.com/log2timeline/plaso/releases/tag/20260512) | [repository Apache License 2.0](https://github.com/log2timeline/plaso/blob/main/LICENSE) | Apache-2.0 (project code; dependencies retain their own licenses) | **Yes.** Preserve Apache notices/license and dependency notices if redistributing. |
+| dfVFS | 20260717 (`20260717`) | [official repository](https://github.com/log2timeline/dfvfs) · [release](https://github.com/log2timeline/dfvfs/releases/tag/20260717) | [repository Apache License 2.0](https://github.com/log2timeline/dfvfs/blob/main/LICENSE) | Apache-2.0 | **Yes.** Preserve license, notices, and applicable patent terms when distributing. |
+| Velociraptor | 0.77.1 (`v0.77.1`) | [official repository](https://github.com/Velocidex/velociraptor) · [release](https://github.com/Velocidex/velociraptor/releases/tag/v0.77.1) | [repository AGPLv3](https://github.com/Velocidex/velociraptor/blob/master/LICENSE) · [official AGPL text](https://www.gnu.org/licenses/agpl-3.0.html) | AGPL-3.0 | **Yes, for tool use and consulting services.** If conveying binaries or modified versions, meet AGPL obligations; modified network-accessible versions must provide corresponding source to users as required by AGPL. |
+| FLARE-FLOSS | 3.1.1 (`v3.1.1`) | [official repository](https://github.com/mandiant/flare-floss) · [release](https://github.com/mandiant/flare-floss/releases/tag/v3.1.1) | [repository Apache License 2.0](https://github.com/mandiant/flare-floss/blob/master/LICENSE.txt) | Apache-2.0 | **Yes.** Preserve Apache notices/license and dependency notices if redistributing. |
+| CyberChef | 11.3.0 (`v11.3.0`) | [official repository](https://github.com/gchq/CyberChef) · [release](https://github.com/gchq/CyberChef/releases/tag/v11.3.0) | [repository Apache License 2.0](https://github.com/gchq/CyberChef/blob/master/LICENSE) | Apache-2.0 | **Yes.** Preserve Apache notices/license and bundled dependency notices. |
+| MISP modules | 3.0.9 (`v3.0.9`) | [official repository](https://github.com/MISP/misp-modules) · [release](https://github.com/MISP/misp-modules/releases/tag/v3.0.9) | [repository AGPLv3](https://github.com/MISP/misp-modules/blob/main/LICENSE) · [official AGPL text](https://www.gnu.org/licenses/agpl-3.0.html) | AGPL-3.0 | **Yes, for tool use and services.** Apply AGPL source/notice obligations when conveying or offering modified network functionality. |
+
+## Conservative exclusions from the install set
+
+These were not included in the approved installation list because their licensing evidence is not unambiguous enough for the stated “no ambiguous licenses” gate, even though a commercial use case may be legally possible after counsel review:
+
+| Tool | Current official release observed | Reason excluded from this approved list | Official evidence |
+|---|---:|---|---|
+| Volatility 3 | 2.28.0 (`v2.28.0`) | Uses the custom Volatility Software License (VSL 1.0), not a standard SPDX license. It contains source-sharing and other conditions; this survey does not make a legal determination that it is suitable for every consulting/resale model. | [official VSL](https://github.com/volatilityfoundation/volatility3/blob/develop/LICENSE.txt) · [release](https://github.com/volatilityfoundation/volatility3/releases/tag/v2.28.0) |
+| SigmaHQ Sigma rules | r2026-07-01 | Repository API reports no SPDX license and the repository is a rules corpus with licensing/third-party content that should be reviewed separately from Sigma tooling. | [official repository](https://github.com/SigmaHQ/sigma) · [release](https://github.com/SigmaHQ/sigma/releases/tag/r2026-07-01) |
+
+## Operational compliance notes
+
+1. Internal use of an approved tool to analyze a client’s evidence and deliver a report is distinct from redistributing the executable, modified source, a container image, or a hosted modified service.
+2. Maintain a software bill of materials and retain each tool’s license and NOTICE files with any deliverable distribution. Dependencies can carry additional obligations even when the top-level project is Apache/BSD.
+3. Do not bundle client evidence, proprietary rules, or client-derived indicators into a redistributed tool package without separately checking ownership and license permissions.
+4. For GPL/AGPL tools, charge for consulting, support, training, and analysis services; do not remove copyleft obligations from any copy conveyed to a client.
+5. Re-check release tags and license files before each production deployment; “current version” is time-sensitive.

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/normalized-evidence.schema.json",
+  "title": "Normalized Evidence Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_id", "source_type", "original_uri", "archive_validation", "inventory", "safe_extraction", "collection_coverage"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "evidence_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "source_type": {"enum": ["uac_archive", "uac_directory", "velociraptor_triage", "memory_dump", "disk_image"]},
+    "original_uri": {"type": "string", "minLength": 1, "description": "Acquisition URI or opaque local reference; never rewritten after ingestion."},
+    "case_id": {"type": "string"},
+    "host_id": {"type": "string"},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "archive_validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "status"],
+      "properties": {
+        "kind": {"enum": ["none", "zip", "tar", "tar_gz", "tar_xz", "7z", "other"]},
+        "status": {"enum": ["not_applicable", "not_run", "valid", "invalid", "unsupported", "partial"]},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "tool": {"type": "string"},
+        "tool_version": {"type": "string"},
+        "member_count": {"type": "integer", "minimum": 0},
+        "error": {"$ref": "#/$defs/error"}
+      }
+    },
+    "inventory": {
+      "type": "array", "items": {"$ref": "#/$defs/inventory_entry"}
+    },
+    "safe_extraction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root", "status", "policy_version"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "status": {"enum": ["not_requested", "completed", "partial", "rejected", "failed"]},
+        "policy_version": {"type": "string"},
+        "max_file_bytes": {"type": "integer", "minimum": 0},
+        "max_total_bytes": {"type": "integer", "minimum": 0},
+        "extracted_count": {"type": "integer", "minimum": 0},
+        "rejected_count": {"type": "integer", "minimum": 0},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}}
+      }
+    },
+    "partition_filesystem": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "image_format": {"type": "string"},
+        "sector_size": {"type": "integer", "minimum": 1},
+        "partitions": {"type": "array", "items": {"$ref": "#/$defs/partition"}}
+      }
+    },
+    "collection_coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["unknown", "partial", "substantial", "complete"]},
+        "filesystem_metadata": {"type": "boolean"},
+        "allocated_files": {"type": "boolean"},
+        "deleted_files": {"type": "boolean"},
+        "unallocated_space": {"type": "boolean"},
+        "memory_artifacts": {"type": "boolean"},
+        "network_artifacts": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "adapter_metadata": {"type": "object"}
+  },
+  "$defs": {
+    "inventory_entry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "size", "mtime", "sha256", "kind"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 0},
+        "mtime": {"type": "string", "format": "date-time"},
+        "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "kind": {"enum": ["file", "directory", "symlink", "special", "deleted"]},
+        "allocated": {"type": "boolean"},
+        "source_id": {"type": "string"},
+        "link_target": {"type": "string"}
+      }
+    },
+    "partition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["offset_bytes", "length_bytes"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0},
+        "offset_bytes": {"type": "integer", "minimum": 0},
+        "length_bytes": {"type": "integer", "minimum": 0},
+        "type": {"type": "string"},
+        "filesystem": {"type": "string"}
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "path": {"type": "string"},
+        "retryable": {"type": "boolean"},
+        "details": {"type": "object"}
+      }
+    }
+  }
+}

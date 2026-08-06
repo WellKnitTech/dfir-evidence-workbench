@@ -1,0 +1,63 @@
+# Tool manifest
+#
+# This is metadata only. It deliberately contains no binaries and no automatic
+# download URLs that are executed by the application. A future installer must
+# resolve each release to an immutable artifact, verify a checksum/signature,
+# preserve upstream notices, and emit an SBOM before installation.
+
+schema_version: 1
+policy: official-source-only
+redistribution: disabled-by-default
+
+approved:
+  - name: sleuthkit
+    version: 4.15.0
+    source: https://github.com/sleuthkit/sleuthkit
+    license: mixed-upstream-components
+    notes: Preserve the upstream license inventory and third-party notices.
+  - name: autopsy
+    version: 4.23.1
+    source: https://github.com/sleuthkit/autopsy
+    license: Apache-2.0-plus-bundled-notices
+  - name: yara
+    version: 4.5.8
+    source: https://github.com/VirusTotal/yara
+    license: BSD-3-Clause
+  - name: bulk_extractor
+    version: 2.1.1
+    source: https://github.com/simsong/bulk_extractor
+    license: GPL-3.0-or-later-plus-components
+  - name: plaso
+    version: 20260512
+    source: https://github.com/log2timeline/plaso
+    license: Apache-2.0-plus-dependencies
+  - name: dfvfs
+    version: 20260717
+    source: https://github.com/log2timeline/dfvfs
+    license: Apache-2.0-plus-dependencies
+  - name: velociraptor
+    version: 0.77.1
+    source: https://github.com/Velocidex/velociraptor
+    license: AGPL-3.0
+    notes: Keep optional; conveying binaries or modified services requires AGPL compliance.
+  - name: flare-floss
+    version: 3.1.1
+    source: https://github.com/mandiant/flare-floss
+    license: Apache-2.0-plus-dependencies
+  - name: cyberchef
+    version: 11.3.0
+    source: https://github.com/gchq/CyberChef
+    license: Apache-2.0-plus-bundled-notices
+  - name: misp-modules
+    version: 3.0.9
+    source: https://github.com/MISP/misp-modules
+    license: AGPL-3.0
+    notes: Keep optional; review network-service obligations before deployment.
+
+excluded_pending_review:
+  - name: volatility3
+    source: https://github.com/volatilityfoundation/volatility3
+    reason: Custom VSL requires separate legal review.
+  - name: sigma-rules
+    source: https://github.com/SigmaHQ/sigma
+    reason: Corpus licensing is not unambiguous enough for this project gate.

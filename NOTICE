@@ -1,0 +1,7 @@
+DFIR Evidence Workbench
+Copyright 2026 WellKnitTech
+
+This repository contains adapter code authored for the project. Third-party
+software and documentation referenced in docs/ are not bundled in this source
+repository and remain under their upstream licenses. See
+NOTICE.third-party.md and docs/approved-tools-commercial-use.md.
