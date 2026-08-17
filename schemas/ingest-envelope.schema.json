@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/ingest-envelope.schema.json",
+  "title": "DFIR Ingest Envelope",
+  "description": "Append-only intake record. Raw vendor data is retained for normalization and never treated as a committed target mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "envelope_id", "received_at_utc", "source", "payload_sha256", "payload", "processing"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "envelope_id": {"type": "string", "minLength": 1},
+    "received_at_utc": {"type": "string", "format": "date-time"},
+    "source": {"$ref": "#/$defs/source"},
+    "payload_sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "payload": {"type": "object"},
+    "processing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "mapping_version"],
+      "properties": {
+        "status": {"enum": ["received", "validated", "preview", "approved", "applied", "duplicate", "rejected", "quarantined", "conflict"]},
+        "mapping_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "idempotency_key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"},
+        "target_id": {"type": ["string", "null"]},
+        "error_code": {"type": ["string", "null"]},
+        "quarantine_reference": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["system", "entity", "id", "scope", "revision", "updated_at_raw", "updated_at_utc", "timezone"],
+      "properties": {
+        "system": {"enum": ["hive", "iris", "workbench", "other"]},
+        "entity": {"enum": ["case", "alert", "observable", "ioc", "asset", "timeline_event", "finding", "evidence_reference"]},
+        "id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "updated_at_raw": {"type": "string", "minLength": 1},
+        "updated_at_utc": {"type": "string", "format": "date-time"},
+        "timezone": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

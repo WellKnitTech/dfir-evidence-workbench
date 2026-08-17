@@ -1,0 +1,13 @@
+{
+  "id": 116,
+  "file_uuid": "e6d5e920-0849-4b7c-ae62-e9455feaf25a",
+  "filename": "disk-image-001.dd",
+  "file_size": 1073741824,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "file_hash": "77077087ee0f61f174a996bbcb7ef09c",
+  "file_description": "HDD image from suspect workstation",
+  "acquisition_date": "2026-08-06T09:00:00Z",
+  "date_added": "2026-08-07T13:40:47.232Z",
+  "type": {"name": "HDD image - Generic"},
+  "custom_attributes": {}
+}

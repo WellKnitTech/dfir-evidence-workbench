@@ -1,0 +1,11 @@
+{
+  "ioc_id": 3885,
+  "ioc_uuid": "daf526e9-d2de-4e59-b616-ca8e930db74e",
+  "ioc_value": "malicious.example.net",
+  "ioc_type": "domain",
+  "ioc_description": "Domain in phishing kit",
+  "ioc_tags": "phish-kit",
+  "tlp_name": "red",
+  "created_at": "2026-08-07T09:00:00Z",
+  "updated_at": "2026-08-07T09:00:00Z"
+}

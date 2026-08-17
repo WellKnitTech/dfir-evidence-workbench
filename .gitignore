@@ -33,3 +33,6 @@ evidence/
 staging/
 analysis-output/
 artifacts/
+*.spdx.json
+*.tsbuildinfo
+node_modules/

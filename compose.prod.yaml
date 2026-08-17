@@ -1,0 +1,150 @@
+# Production-shaped compose template for DFIR Evidence Workbench (prototype reference ONLY).
+# NEVER commit real credentials, keys, or production values.
+# This is a skeleton: review against security-defensibility-requirements.md before any use.
+#
+# Key production differences vs dev:
+# - No synthetic tenant or dev-only routes (DFIRWB_ENV=prod)
+# - Real auth (Entra ID / OIDC) wired before enabling protected routes
+# - Secrets via external secret manager / podman secrets / docker secrets / k8s secrets
+#   (NOT via .env files or env interpolation with real values)
+# - TLS termination in front (nginx, traefik, cloud LB); API never directly public
+# - Image should be pinned by digest (not just tag); vulnerability scanned + signed
+# - Evidence storage: object store (e.g. S3 with tenant/case prefixes + IAM), or
+#   dedicated read-only mounts for originals + bounded scratch volumes per case
+# - Database: managed PG or container with strict backup/restore, encryption at rest,
+#   network isolation, least-priv service account
+# - Resource limits, monitoring, audit sink, log aggregation external
+# - No volume bind-mount of source; use built image only
+# - Do not publish ports directly to 0.0.0.0 without auth proxy + firewall
+#
+# Usage pattern (example, adapt):
+#   podman secret create dfir-db-url "$(cat db-url.txt)"   # or equiv
+#   podman compose -f compose.prod.yaml --env-file .env.prod up -d
+#   (where .env.prod has only non-secret values like DFIRWB_ENV=prod, DFIRWB_HOST=0.0.0.0)
+#
+# Stop: podman compose -f compose.prod.yaml down
+#
+# This does not replace full k8s/helm or orchestrator manifests. See README for distinctions.
+
+name: dfir-evidence-workbench-prod
+
+services:
+  postgres:
+    # In real prod: use managed service or hardened image + init from secrets.
+    image: docker.io/library/postgres@sha256:2c64f6d1be50ea37f722d27b936abc6557e5fb95c995514bd9c43490ef8160ef
+    container_name: dfir-postgres-prod
+    # Secrets injected via podman/docker secret or orchestrator (example shown commented)
+    # secrets:
+    #   - source: dfir_postgres_user
+    #     target: POSTGRES_USER
+    #   - source: dfir_postgres_password
+    #     target: POSTGRES_PASSWORD
+    #   - source: dfir_postgres_db
+    #     target: POSTGRES_DB
+    environment:
+      # Placeholders only; provide via secrets or runtime env injection. No defaults here.
+      POSTGRES_USER_FILE: /run/secrets/POSTGRES_USER   # or use _FILE convention if supported
+      POSTGRES_PASSWORD_FILE: /run/secrets/POSTGRES_PASSWORD
+      POSTGRES_DB_FILE: /run/secrets/POSTGRES_DB
+    # No published ports in template; fronted by reverse proxy / LB on private net.
+    # ports: []
+    volumes:
+      - dfir_pg_data_prod:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+      - FOWNER
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dfir -d dfir_prod"]  # adjust to injected
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+          pids: 200
+    # networks: [backend]  # isolated network in full compose
+
+  api:
+    # Required immutable reference to a scanned, signed image. No source build or mount in prod.
+    image: ${DFIRWB_API_IMAGE}
+    container_name: dfir-api-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DFIRWB_ENV: prod
+      DFIRWB_HOST: 0.0.0.0
+      DFIRWB_PORT: "8080"
+      DFIRWB_LOG_LEVEL: warning
+      # No DFIRWB_SYNTHETIC_TENANT in prod
+      # DFIRWB_DATABASE_URL provided via secret (example)
+      # DFIRWB_DATABASE_URL_FILE: /run/secrets/DFIRWB_DATABASE_URL
+    # ports: []  # exposed only via proxy; never direct public bind
+    volumes:
+      # No source bind mount in prod. Use built-in layers only.
+      # Evidence storage: example scratch; replace with object store integration or
+      # read-only source mounts + private case scratch (enforce tenant/case prefixes).
+      - dfir_evidence_prod:/var/lib/dfir-evidence
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3); sys.exit(0 if r.status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 128
+    # In real deployment: add labels for traefik/ingress, auth proxy sidecar, etc.
+
+# secrets:  # example
+#   dfir_postgres_user:
+#     external: true
+#   ...
+
+volumes:
+  dfir_pg_data_prod:
+    driver: local
+  dfir_evidence_prod:
+    driver: local
+
+# networks:
+#   default:
+#     internal: true   # no external if using sidecars

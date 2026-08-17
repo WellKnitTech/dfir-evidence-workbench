@@ -1,0 +1,15 @@
+{
+  "asset_id": 57,
+  "asset_uuid": "c6598fd0-836a-4fc4-87c1-6f03348eadeb",
+  "asset_name": "FILESERVER1231",
+  "asset_type": "Windows - Server",
+  "asset_description": "Primary file server in domain",
+  "asset_domain": "kerrville.local",
+  "asset_ip": "10.0.0.15",
+  "asset_tags": "critical,windows",
+  "asset_compromise_status_id": 0,
+  "analysis_status": "Unspecified",
+  "date_added": "2026-08-06T10:00:00Z",
+  "updated_at": "2026-08-07T11:00:00Z",
+  "custom_attributes": {}
+}

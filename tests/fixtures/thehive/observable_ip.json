@@ -1,0 +1,13 @@
+{
+  "_id": "obs-ip-001",
+  "dataType": "ip",
+  "data": "198.51.100.10",
+  "message": "Suspected C2 endpoint observed in proxy logs",
+  "tlp": 2,
+  "pap": 2,
+  "tags": ["c2", "proxy"],
+  "ioc": true,
+  "status": "Ok",
+  "createdAt": "2026-08-06T10:00:00.000Z",
+  "updatedAt": "2026-08-07T11:00:00.000Z"
+}

@@ -1,0 +1,13 @@
+{
+  "event_id": 1234,
+  "event_uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event_title": "Initial triage review",
+  "event_content": "Reviewed logs, no lateral movement observed.",
+  "event_date": "2026-08-07T10:05:00Z",
+  "event_date_wtz": "2026-08-07T10:05:00+00:00",
+  "event_tz": "UTC",
+  "category_name": "task",
+  "event_tags": "triage,review",
+  "created_at": "2026-08-07T10:00:00Z",
+  "updated_at": "2026-08-07T10:45:00Z"
+}

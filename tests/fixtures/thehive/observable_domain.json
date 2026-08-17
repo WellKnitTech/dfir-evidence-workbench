@@ -1,0 +1,12 @@
+{
+  "_id": "obs-dom-002",
+  "dataType": "domain",
+  "data": "malicious.example.net",
+  "message": "Domain in phishing kit",
+  "tlp": 3,
+  "pap": 2,
+  "tags": ["phish-kit"],
+  "ioc": false,
+  "createdAt": "2026-08-07T09:00:00Z",
+  "updatedAt": "2026-08-07T09:00:00Z"
+}

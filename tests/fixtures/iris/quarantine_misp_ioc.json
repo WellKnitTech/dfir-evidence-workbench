@@ -1,0 +1,12 @@
+{
+  "ioc_id": 119,
+  "ioc_uuid": "7de0ffb1-f837-4c03-99e7-f13533b7516c",
+  "ioc_value": "testss",
+  "ioc_type": "domain",
+  "ioc_description": "",
+  "ioc_tags": "testtag",
+  "ioc_misp": {"event_id": "123"},
+  "tlp_name": "amber",
+  "created_at": "2026-08-07T12:00:00Z",
+  "updated_at": "2026-08-07T12:00:00Z"
+}

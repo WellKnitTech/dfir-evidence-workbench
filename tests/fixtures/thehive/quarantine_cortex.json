@@ -1,0 +1,9 @@
+{
+  "_id": "case-cortex",
+  "title": "Case with cortex jobs",
+  "description": "has analyzer results",
+  "cortexJobs": [{"jobId": "j1", "status": "Success"}],
+  "tlp": 1,
+  "createdAt": "2026-08-07T12:00:00Z",
+  "updatedAt": "2026-08-07T12:00:00Z"
+}

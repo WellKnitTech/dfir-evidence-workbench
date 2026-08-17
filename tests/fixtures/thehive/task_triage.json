@@ -1,0 +1,11 @@
+{
+  "_id": "task-triage-01",
+  "title": "Triage the alert",
+  "description": "Review observables and determine if escalation to case is needed.",
+  "status": "InProgress",
+  "flag": false,
+  "createdAt": "2026-08-07T10:00:00.000Z",
+  "updatedAt": "2026-08-07T10:45:00.000Z",
+  "startDate": "2026-08-07T10:05:00.000Z",
+  "endDate": null
+}

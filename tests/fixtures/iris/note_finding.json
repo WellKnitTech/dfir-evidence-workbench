@@ -1,0 +1,11 @@
+{
+  "note_id": 16,
+  "note_uuid": "ecbbd74e-85fd-4268-a9a4-c069677e6677",
+  "note_title": "Analyst finding: phishing vector confirmed",
+  "note_content": "Link in email led to credential capture page hosted on known bad domain. Recommend blocking and user training.",
+  "note_creationdate": "2026-08-07T10:30:00.000Z",
+  "note_lastupdate": "2026-08-07T10:30:00.000Z",
+  "note_user": "analyst-42",
+  "tags": "finding,phishing",
+  "custom_attributes": {}
+}

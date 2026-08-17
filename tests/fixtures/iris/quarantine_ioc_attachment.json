@@ -1,0 +1,11 @@
+{
+  "ioc_id": 86,
+  "ioc_uuid": "4cef264d-3381-4a6b-aa16-79db5e509714",
+  "ioc_value": "evidence.zip",
+  "ioc_type": "attachment",
+  "ioc_description": "malware sample",
+  "ioc_tags": "",
+  "tlp_name": "red",
+  "created_at": "2026-08-07T12:00:00Z",
+  "updated_at": "2026-08-07T12:00:00Z"
+}

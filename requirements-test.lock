@@ -1,0 +1,17 @@
+# Generated from pyproject.toml [project.optional-dependencies].test in a clean Python 3.11 venv.
+anyio==4.14.2
+attrs==26.1.0
+certifi==2026.7.22
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+iniconfig==2.3.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+packaging==26.3
+pluggy==1.6.0
+pytest==8.3.5
+pytest-asyncio==1.3.0
+referencing==0.37.0
+rpds-py==2026.6.3

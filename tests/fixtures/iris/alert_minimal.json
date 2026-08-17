@@ -1,0 +1,11 @@
+{
+  "alert_uuid": "78cc0e06-a90f-4486-9671-e5d0ac42ff52",
+  "alert_source_ref": "siem-12345",
+  "alert_title": "Multiple failed logins detected",
+  "alert_description": "Brute force attempt on service account",
+  "alert_creation_time": "2026-08-07T08:22:10.500Z",
+  "updated_at": "2026-08-07T08:25:00.000Z",
+  "alert_tags": "bruteforce,auth",
+  "comments": [],
+  "custom_attributes": {}
+}

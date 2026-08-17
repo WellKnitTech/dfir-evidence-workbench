@@ -1,0 +1,119 @@
+# Local containerized DFIR Evidence Workbench stack (Podman/Docker Compose)
+# - PostgreSQL 15 (pinned) + FastAPI API service
+# - Health checks drive startup ordering (no sleeps)
+# - Persistent named volumes for dev data; bounded evidence scratch volume
+# - Localhost-only bindings by default (127.0.0.1) -- see compose.lan.yaml for opt-in trusted LAN
+# - Synthetic data only; DFIRWB_ENV=dev enables dev-only routes (disabled in prod)
+# - Secrets ONLY via DFIRWB_DATABASE_URL (never in files, never interpolated with real values in committed templates)
+# - Least-privilege: non-root (api), dropped caps, no-new-privs, read-only rootfs + explicit tmpfs, resource limits
+# - Log rotation bounded; evidence storage boundary documented (read-only originals, case-scoped scratch)
+# - Production: use compose.prod.yaml (or equiv), external secret injection, TLS terminator, real auth
+
+services:
+  postgres:
+    image: docker.io/library/postgres@sha256:2c64f6d1be50ea37f722d27b936abc6557e5fb95c995514bd9c43490ef8160ef
+    container_name: dfir-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dfir}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dfir-dev-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-dfir_dev}
+    ports:
+      - "${POSTGRES_PUBLISH:-127.0.0.1:5432}:5432"
+    volumes:
+      - dfir_pg_data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+      - FOWNER
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dfir} -d ${POSTGRES_DB:-dfir_dev}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 100
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dfir-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DFIRWB_ENV: ${DFIRWB_ENV:-dev}
+      DFIRWB_HOST: 0.0.0.0
+      DFIRWB_PORT: "8080"
+      DFIRWB_LOG_LEVEL: info
+      DFIRWB_SYNTHETIC_TENANT: ${DFIRWB_SYNTHETIC_TENANT:-synthetic-dev-org}
+      # DFIRWB_DATABASE_URL MUST come from .env or host environment ONLY (see .env.example).
+      # Never embed real credentials, construct with password literals, or use POSTGRES_* for the app URL in compose templates.
+      # Set in .env: DFIRWB_DATABASE_URL=postgresql://dfir:dfir-dev-pass@postgres:5432/dfir_dev
+      DFIRWB_DATABASE_URL: ${DFIRWB_DATABASE_URL}
+    ports:
+      - "${API_PUBLISH:-127.0.0.1:8080}:8080"
+    volumes:
+      - .:/app:Z
+      # Evidence/object storage boundary (per security requirements):
+      # - dfir_evidence volume for case-scoped working copies / quarantine
+      # - In production: mount source evidence read-only; use object storage (S3 etc) or
+      #   tenant/case-prefixed paths; never mix tenants; originals never rw by app.
+      - dfir_evidence:/var/lib/dfir-evidence
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3); sys.exit(0 if r.status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+          pids: 64
+
+volumes:
+  dfir_pg_data:
+    driver: local
+  # Bounded evidence storage (scratch/quarantine area). Production deployments
+  # should enforce per-tenant/case isolation at storage layer (e.g. object prefixes,
+  # separate volumes, or signed URLs) and mount source evidence read-only.
+  dfir_evidence:
+    driver: local

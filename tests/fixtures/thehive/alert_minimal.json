@@ -1,0 +1,21 @@
+{
+  "_id": "alert-AW5vZ3p4xY7Z2pQ8rT9uW",
+  "type": "external",
+  "source": "siem",
+  "sourceRef": "INC-98765",
+  "title": "Multiple failed logins detected",
+  "description": "Brute force attempt on service account",
+  "severity": 3,
+  "tlp": 1,
+  "pap": 2,
+  "tags": ["bruteforce", "auth"],
+  "date": "2026-08-07T08:22:10.500Z",
+  "createdAt": "2026-08-07T08:22:15.000Z",
+  "updatedAt": "2026-08-07T08:25:00.000Z",
+  "status": "New",
+  "owner": null,
+  "artifacts": [
+    {"dataType": "ip", "data": "203.0.113.50"}
+  ],
+  "customFields": {}
+}

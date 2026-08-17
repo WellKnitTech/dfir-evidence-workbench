@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/interop-entity.schema.json",
+  "title": "DFIR Interoperability Entity",
+  "description": "Vendor-neutral ingest contract for TheHive and DFIR-IRIS shaped case data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "entity_type", "provenance", "payload"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "entity_type": {"enum": ["case", "alert", "observable", "ioc", "asset", "timeline_event", "finding", "evidence_reference"]},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "payload": {"type": "object"}
+  },
+  "oneOf": [
+    {"properties": {"entity_type": {"const": "case"}, "provenance": {"properties": {"source_entity": {"const": "case"}}}, "payload": {"$ref": "#/$defs/case"}}},
+    {"properties": {"entity_type": {"const": "alert"}, "provenance": {"properties": {"source_entity": {"const": "alert"}}}, "payload": {"$ref": "#/$defs/alert"}}},
+    {"properties": {"entity_type": {"enum": ["observable", "ioc"]}, "provenance": {"properties": {"source_entity": {"enum": ["observable", "ioc"]}}}, "payload": {"$ref": "#/$defs/indicator"}}},
+    {"properties": {"entity_type": {"const": "asset"}, "provenance": {"properties": {"source_entity": {"const": "asset"}}}, "payload": {"$ref": "#/$defs/asset"}}},
+    {"properties": {"entity_type": {"const": "timeline_event"}, "provenance": {"properties": {"source_entity": {"const": "timeline_event"}}}, "payload": {"$ref": "#/$defs/timeline_event"}}},
+    {"properties": {"entity_type": {"const": "finding"}, "provenance": {"properties": {"source_entity": {"const": "finding"}}}, "payload": {"$ref": "#/$defs/finding"}}},
+    {"properties": {"entity_type": {"const": "evidence_reference"}, "provenance": {"properties": {"source_entity": {"const": "evidence_reference"}}}, "payload": {"$ref": "#/$defs/evidence_reference"}}}
+  ],
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["integration_id", "source_system", "source_entity", "source_id", "source_scope", "source_revision", "source_updated_at_raw", "source_updated_at_utc", "source_timezone", "mapping_version", "idempotency_key", "redaction_flags", "lossy_transformations"],
+      "properties": {
+        "integration_id": {"type": "string", "minLength": 1},
+        "source_system": {"enum": ["hive", "iris", "workbench", "other"]},
+        "source_entity": {"enum": ["case", "alert", "observable", "ioc", "asset", "timeline_event", "finding", "evidence_reference"]},
+        "source_id": {"type": "string", "minLength": 1},
+        "source_scope": {"type": "string", "minLength": 1},
+        "source_revision": {"type": "string", "minLength": 1},
+        "source_updated_at_raw": {"type": "string", "minLength": 1},
+        "source_updated_at_utc": {"type": "string", "format": "date-time"},
+        "source_timezone": {"type": "string", "minLength": 1},
+        "mapping_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "idempotency_key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"},
+        "target_id": {"type": ["string", "null"]},
+        "provenance_uri": {"type": ["string", "null"]},
+        "provenance_note": {"type": ["string", "null"]},
+        "redaction_flags": {"type": "object", "additionalProperties": {"$ref": "#/$defs/redaction"}},
+        "lossy_transformations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "policy_version"],
+      "properties": {
+        "decision": {"enum": ["passed", "masked", "dropped", "quarantined"]},
+        "policy_version": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"}
+      }
+    },
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "case": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": ["string", "null"]},
+        "severity": {"type": ["string", "integer", "null"]},
+        "tlp": {"type": ["string", "null"]},
+        "pap": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "alert": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": ["string", "null"]},
+        "severity": {"type": ["string", "integer", "null"]},
+        "tlp": {"type": ["string", "null"]},
+        "pap": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "status": {"type": ["string", "null"]},
+        "observables": {"type": "array", "items": {"type": "object"}},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "indicator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["value", "type"],
+      "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "type": {"type": "string", "minLength": 1},
+        "description": {"type": ["string", "null"]},
+        "tlp": {"type": ["string", "null"]},
+        "pap": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "classification": {"type": ["string", "null"]},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "asset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asset_type", "name"],
+      "properties": {
+        "asset_type": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "hostname": {"type": ["string", "null"]},
+        "ip": {"type": ["string", "null"]},
+        "fqdn": {"type": ["string", "null"]},
+        "role": {"type": ["string", "null"]},
+        "owner_reference": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "timeline_event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["occurred_at_raw", "occurred_at_utc", "timezone", "category", "title"],
+      "properties": {
+        "occurred_at_raw": {"type": "string", "minLength": 1},
+        "occurred_at_utc": {"type": "string", "format": "date-time"},
+        "timezone": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": ["string", "null"]},
+        "actor_reference": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "body", "approval_required"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1},
+        "body": {"type": "string", "minLength": 1},
+        "confidence": {"type": ["string", "number", "null"]},
+        "author_reference": {"type": ["string", "null"]},
+        "tags": {"$ref": "#/$defs/tags"},
+        "linked_ids": {"type": "array", "items": {"type": "string"}},
+        "approval_required": {"const": true},
+        "custom_fields": {"type": "object"}
+      }
+    },
+    "evidence_reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["filename", "size_bytes", "sha256", "content_transferred"],
+      "properties": {
+        "filename": {"type": "string", "minLength": 1},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "restricted_uri": {"type": ["string", "null"]},
+        "content_transferred": {"const": false}
+      }
+    }
+  }
+}

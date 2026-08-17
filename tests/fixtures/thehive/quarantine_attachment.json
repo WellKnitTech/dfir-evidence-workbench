@@ -1,0 +1,12 @@
+{
+  "_id": "obs-file-1",
+  "dataType": "attachment",
+  "data": "evidence.zip",
+  "message": "malware sample",
+  "tlp": 3,
+  "pap": 3,
+  "tags": [],
+  "ioc": false,
+  "createdAt": "2026-08-07T12:00:00Z",
+  "updatedAt": "2026-08-07T12:00:00Z"
+}

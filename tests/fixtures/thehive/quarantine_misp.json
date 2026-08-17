@@ -1,0 +1,9 @@
+{
+  "_id": "alert-misp",
+  "title": "MISP event imported",
+  "description": "from MISP",
+  "mispEvent": {"event_id": "123", "info": "ransomware"},
+  "source": "misp",
+  "createdAt": "2026-08-07T12:00:00Z",
+  "updatedAt": "2026-08-07T12:00:00Z"
+}

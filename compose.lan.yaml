@@ -1,0 +1,111 @@
+# LAN / trusted-network override for DFIR Evidence Workbench prototype ONLY.
+# - Explicit opt-in for development/exploration on trusted LAN.
+# - DO NOT use for production, untrusted networks, or with real evidence/tenants.
+# - Base compose.yaml remains localhost-only (127.0.0.1). Do not edit base for LAN.
+# - Per lan-development-exposure skill and security policy: plain HTTP, synthetic auth,
+#   no real TLS/auth/tenant controls. Treat as exploratory only.
+# - You are responsible for host firewall rules (this file does not modify policy).
+# - Stop with: podman compose -f compose.lan.yaml down
+
+name: dfir-evidence-workbench-lan
+
+services:
+  postgres:
+    image: docker.io/library/postgres@sha256:2c64f6d1be50ea37f722d27b936abc6557e5fb95c995514bd9c43490ef8160ef
+    container_name: dfir-postgres-lan
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dfir}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dfir-dev-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-dfir_dev}
+    ports:
+      - "${POSTGRES_PUBLISH:-0.0.0.0:5432}:5432"
+    volumes:
+      - dfir_pg_data_lan:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+      - FOWNER
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dfir} -d ${POSTGRES_DB:-dfir_dev}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 100
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dfir-api-lan
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DFIRWB_ENV: ${DFIRWB_ENV:-dev}
+      DFIRWB_HOST: 0.0.0.0
+      DFIRWB_PORT: "8080"
+      DFIRWB_LOG_LEVEL: info
+      DFIRWB_SYNTHETIC_TENANT: ${DFIRWB_SYNTHETIC_TENANT:-synthetic-dev-org}
+      # DFIRWB_DATABASE_URL MUST come from .env or host environment ONLY (see .env.example).
+      # Never embed real credentials... Set full URL in .env for the run.
+      DFIRWB_DATABASE_URL: ${DFIRWB_DATABASE_URL}
+    ports:
+      - "${API_PUBLISH:-0.0.0.0:8080}:8080"
+    volumes:
+      - .:/app:Z
+      - dfir_evidence_lan:/var/lib/dfir-evidence
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3); sys.exit(0 if r.status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+          pids: 64
+
+volumes:
+  dfir_pg_data_lan:
+    driver: local
+  dfir_evidence_lan:
+    driver: local

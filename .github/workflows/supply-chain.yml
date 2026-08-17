@@ -1,0 +1,79 @@
+name: supply-chain
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check -r requirements-api.lock -r requirements-test.lock
+      - run: python -m pytest -q
+      - run: python -m compileall -q src tests
+      - run: python -m pip check
+      - name: Migration sanity gate
+        run: |
+          test -s migrations/0001_create_timeline_entry_flags.sql
+          for migration in migrations/*.sql; do grep -Eq '^(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|BEGIN|COMMIT)' "$migration"; done
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate all compose manifests
+        env:
+          DFIRWB_DATABASE_URL: postgresql://dfir:ci-placeholder@postgres:5432/dfir_dev
+          DFIRWB_API_IMAGE: registry.example.invalid/dfir-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.lan.yaml config --quiet
+          docker compose -f compose.prod.yaml config --quiet
+          ./tools/verify-supply-chain.sh
+
+  image:
+    needs: [quality, compose]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build immutable image
+        run: docker build --pull=false --label org.opencontainers.image.revision="$GITHUB_SHA" --tag dfir-evidence-workbench:"$GITHUB_SHA" .
+      - name: Generate SBOM and scan image
+        env:
+          IMAGE: dfir-evidence-workbench:${{ github.sha }}
+          TRIVY_IMAGE: docker.io/aquasec/trivy@sha256:6967db29ce5294d054121e94b3cb1262de858af63b4547bb1bade66a4306f2e4
+          SYFT_IMAGE: docker.io/anchore/syft@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b
+        run: |
+          test "$SYFT_IMAGE" != *0000000000000000000000000000000000000000000000000000000000000000
+          ./tools/verify-supply-chain.sh --container
+      - name: Sign release image (keyless on tag builds)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          IMAGE: dfir-evidence-workbench:${{ github.sha }}
+        run: cosign sign --yes "$IMAGE"
