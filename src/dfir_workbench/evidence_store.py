@@ -222,6 +222,23 @@ class EvidenceStore:
         )
         return QuarantineRecord(quarantine_id=qid, tenant_id=self.tenant_id, sha256=digest, size=blob.stat().st_size, received_at_utc=received_at)
 
+    def find_quarantine_by_sha(self, sha256: str) -> QuarantineRecord | None:
+        """Return a matching staged object so an interrupted promotion can resume."""
+        root = self._tenant_root / "quarantine"
+        if not root.is_dir():
+            return None
+        for qdir in root.iterdir():
+            meta_path = qdir / "meta.json"
+            if not qdir.is_dir() or not meta_path.is_file():
+                continue
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                if data.get("tenant_id") == self.tenant_id and data.get("sha256") == sha256:
+                    return QuarantineRecord(**{k: data[k] for k in ("quarantine_id", "tenant_id", "sha256", "size", "received_at_utc")})
+            except (OSError, KeyError, TypeError, ValueError):
+                continue
+        return None
+
     # -- promotion to immutable case evidence ------------------------------------
 
     def promote_to_evidence(
@@ -239,6 +256,17 @@ class EvidenceStore:
         quarantine hash does not match `expected_sha256`, or if an evidence
         object already exists at that id (no silent overwrite of originals).
         """
+        # Registration is content-idempotent: retries may reuse an already
+        # published immutable object, but only after verifying its manifest and
+        # bytes.  Never treat a matching directory alone as proof of identity.
+        existing_manifest_path = self._manifest_path(case_id, evidence_id)
+        if existing_manifest_path.is_file():
+            existing = self.read_manifest(case_id, evidence_id)
+            original = self.original_path(case_id, evidence_id)
+            if existing.sha256 != expected_sha256 or existing.size != original.stat().st_size or not self.verify_integrity(case_id, evidence_id):
+                raise EvidenceStoreError("EVIDENCE_CONFLICT", "existing evidence does not match the declared checksum or size")
+            return existing
+
         qdir = self._quarantine_dir(quarantine_id)
         blob = qdir / "blob"
         meta_path = qdir / "meta.json"
@@ -253,9 +281,15 @@ class EvidenceStore:
             raise EvidenceStoreError("CHECKSUM_MISMATCH", "quarantined bytes do not match the declared checksum")
 
         edir = self._evidence_dir(case_id, evidence_id)
-        if edir.exists():
+        try:
+            edir.mkdir(mode=0o700, parents=True, exist_ok=False)
+        except FileExistsError:
+            if existing_manifest_path.is_file():
+                existing = self.read_manifest(case_id, evidence_id)
+                original = self.original_path(case_id, evidence_id)
+                if existing.sha256 == expected_sha256 and existing.size == original.stat().st_size and self.verify_integrity(case_id, evidence_id):
+                    return existing
             raise EvidenceStoreError("EVIDENCE_EXISTS", "an evidence object already exists at this id; originals are immutable")
-        edir.mkdir(mode=0o700, parents=True, exist_ok=False)
         original = edir / "original"
         shutil.copyfile(blob, original)
         _require_contained(original, self._tenant_root)
@@ -285,6 +319,24 @@ class EvidenceStore:
         # Quarantine is single-use: remove the staged copy once promoted.
         shutil.rmtree(qdir, ignore_errors=True)
         return manifest
+
+    def register_to_evidence(
+        self,
+        *,
+        case_id: str,
+        evidence_id: str,
+        quarantine_id: str,
+        expected_sha256: str,
+        retention_days: int | None = None,
+    ) -> EvidenceManifest:
+        """Explicit name for retry-safe evidence registration."""
+        return self.promote_to_evidence(
+            case_id=case_id,
+            evidence_id=evidence_id,
+            quarantine_id=quarantine_id,
+            expected_sha256=expected_sha256,
+            retention_days=retention_days,
+        )
 
     # -- read / lookup -----------------------------------------------------------
 
