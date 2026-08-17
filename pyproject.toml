@@ -13,7 +13,7 @@ authors = [{name = "WellKnitTech"}]
 dependencies = []
 
 [project.optional-dependencies]
-test = ["pytest==8.3.5", "jsonschema==4.26.0", "httpx==0.28.1", "pytest-asyncio==1.3.0"]
+test = ["pytest==9.0.3", "jsonschema==4.26.0", "httpx==0.28.1", "pytest-asyncio==1.3.0"]
 api = [
     "fastapi==0.141.1",
     "uvicorn[standard]==0.52.1",
