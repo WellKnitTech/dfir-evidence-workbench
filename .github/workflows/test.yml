@@ -38,7 +38,7 @@ jobs:
       - name: Run tests
         env:
           # Ephemeral CI-only database; no credential is persisted in the workflow.
-          DFIRWB_DATABASE_URL: postgresql://testuser@postgres:5432/testdb
+          DFIRWB_DATABASE_URL: postgresql://testuser@127.0.0.1:5432/testdb
         run: python -m pytest -q
       - name: Compile Python
         run: python -m compileall -q src tests
