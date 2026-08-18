@@ -80,6 +80,26 @@ export interface TimelineFlag {
   note: string | null;
 }
 
+export interface RunnerFixture {
+  fixture_id: string;
+  class: string;
+  scenario: string[];
+  format: string;
+  synthetic: boolean;
+}
+
+export interface RunnerJob {
+  job_id: string;
+  fixture_id: string;
+  status: string;
+  progress: number;
+  attempt: number;
+  synthetic: boolean;
+  provenance: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  error?: { code: string; message: string; retryable: boolean };
+}
+
 const DEFAULT_BASE_URL = "http://127.0.0.1:8080";
 
 export class ApiClient {
@@ -180,6 +200,26 @@ export class ApiClient {
 
   listTimelineFlags(timelineEntryId: string): Promise<{ items: TimelineFlag[] }> {
     return this.request(`/api/v1/timeline/flags${qs({ timeline_entry_id: timelineEntryId })}`);
+  }
+
+  runnerCatalog(): Promise<{ fixtures: RunnerFixture[]; synthetic: boolean }> {
+    return this.request("/__dev__/runner/catalog");
+  }
+
+  runnerRegister(fixtureId: string): Promise<{ registration: Record<string, unknown> }> {
+    return this.request("/__dev__/runner/register", { method: "POST", body: JSON.stringify({ fixture_id: fixtureId }) });
+  }
+
+  runnerSubmit(fixtureId: string): Promise<RunnerJob> {
+    return this.request("/__dev__/runner/jobs", { method: "POST", body: JSON.stringify({ fixture_id: fixtureId }) });
+  }
+
+  runnerReview(jobId: string, decision: "approve" | "quarantine"): Promise<RunnerJob> {
+    return this.request(`/__dev__/runner/jobs/${encodeURIComponent(jobId)}/review`, { method: "POST", body: JSON.stringify({ decision }) });
+  }
+
+  runnerTeardown(): Promise<Record<string, unknown>> {
+    return this.request("/__dev__/runner/teardown", { method: "DELETE" });
   }
 }
 

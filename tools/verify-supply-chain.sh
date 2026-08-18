@@ -9,7 +9,9 @@ python - <<'PY'
 from pathlib import Path
 import re
 
-for path in (Path('Dockerfile'), Path('compose.yaml'), Path('compose.lan.yaml'), Path('compose.prod.yaml')):
+paths = [Path('Dockerfile'), Path('compose.yaml'), Path('compose.lan.yaml'), Path('compose.prod.yaml')]
+paths.extend(Path('workers').rglob('Dockerfile'))
+for path in paths:
     text = path.read_text()
     refs = re.findall(r'(?m)^\s*(?:FROM|image:)\s+([^\s#]+)', text)
     for ref in refs:

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dfir-openrelik-manifest-worker"
+version = "0.1.0"
+description = "Read-only evidence manifest worker for OpenRelik-compatible workflows"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+openrelik-manifest-worker = "openrelik_manifest_worker.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -173,6 +173,22 @@ licenses/notices, and generate an SBOM. Publishing a prebuilt image containing
 GPL/AGPL or mixed-license tools is redistribution and requires its own
 compliance package.
 
+## Local analyst runner (dev-only)
+
+The repository now includes one reproducible browser path over the real local workflows. It generates and verifies `corpus-v1` on first use, registers a selected synthetic fixture, stages a verified copy, processes disk/memory/artifact inputs, exposes progress/output/provenance, and requires an explicit analyst approve or quarantine decision. Tenant scope comes only from the trusted Principal; the runner is process-local and is not a production queue or evidence store.
+
+Native launch:
+
+```bash
+python -m pip install -e '.[test,api]'
+DFIRWB_ENV=dev PYTHONPATH=src uvicorn dfir_workbench.api:app --host 127.0.0.1 --port 8080
+cd frontend && npm ci && VITE_DFIRWB_API_URL=http://127.0.0.1:8080 npm run dev -- --host 127.0.0.1
+```
+
+Open `http://127.0.0.1:5173`. The **Safe teardown** action removes only the synthetic tenant workspace. For Podman, use the existing `compose.yaml` API stack, then run the frontend with `VITE_DFIRWB_API_URL=http://127.0.0.1:8080`; `podman compose down -v` tears down the synthetic database and volumes.
+
+The dev runner routes are deliberately excluded from production and OpenAPI: `/__dev__/runner/catalog`, `/register`, `/jobs`, `/jobs/{id}/review`, and `/teardown`.
+
 ## License
 
 Project-authored code is Apache-2.0. Third-party components are not relicensed

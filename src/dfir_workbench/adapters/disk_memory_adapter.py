@@ -66,8 +66,8 @@ def _parse_mbr(path: Path) -> tuple[int, list[dict[str, Any]]]:
     return 512, parts
 
 def _parse_gpt(path: Path) -> tuple[int, list[dict[str, Any]]]:
-    h=_read(path,512,92)
-    if h[:8] != b"EFI PART": return 512, []
+    h=_read(path,512,96)
+    if len(h) < 96 or h[:8] != b"EFI PART": return 512, []
     sector=512; first,last,nent,esz=struct.unpack_from("<QQII", h, 72)
     parts=[]
     for i in range(min(nent, 4096)):

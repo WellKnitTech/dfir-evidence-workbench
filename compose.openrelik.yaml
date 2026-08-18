@@ -1,0 +1,46 @@
+# Opt-in OpenRelik-compatible worker profile.
+# Usage and safety requirements: docs/openrelik-worker-capability-profiles.md
+services:
+  openrelik-manifest-worker:
+    profiles: ["worker.normal"]
+    build:
+      context: ./workers/openrelik-manifest-worker
+      dockerfile: Dockerfile
+    read_only: true
+    user: "65532:65532"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - openrelik_internal_only
+    volumes:
+      - type: bind
+        source: ${STAGED_INPUT:?STAGED_INPUT must point to a staged evidence path}
+        target: /input
+        read_only: true
+      - type: bind
+        source: ${JOB_OUTPUT:?JOB_OUTPUT must point to a job-scoped output directory}
+        target: /output
+        read_only: false
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    command:
+      - --input
+      - /input
+      - --output
+      - /output
+      - --task-id
+      - ${OPENRELIK_TASK_ID:?OPENRELIK_TASK_ID is required}
+      - --evidence-id
+      - ${OPENRELIK_EVIDENCE_ID:?OPENRELIK_EVIDENCE_ID is required}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 256
+
+networks:
+  openrelik_internal_only:
+    internal: true
