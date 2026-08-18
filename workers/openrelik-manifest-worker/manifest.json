@@ -1,0 +1,13 @@
+{
+  "name": "dfir.openrelik.manifest",
+  "version": "0.1.0",
+  "task_type": "evidence.metadata_manifest",
+  "input_types": ["file", "directory"],
+  "capabilities": ["sha256", "metadata_inventory", "provenance"],
+  "safety": {
+    "read_only_inputs": true,
+    "staged_inputs_only": true,
+    "host_device_access": false,
+    "privileged_access": false
+  }
+}

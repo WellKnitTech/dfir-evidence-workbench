@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
@@ -57,6 +58,7 @@ import dfir_workbench.ingest as _ingest  # noqa: F401  # pre-commit boundary usi
 import dfir_workbench.audit as _audit  # noqa: F401  # structured audit event sink
 import dfir_workbench.metrics as _metrics  # noqa: F401  # in-process metrics registry
 import dfir_workbench.alerts as _alerts  # noqa: F401  # alert rule evaluation over metrics
+import dfir_workbench.local_runner as _runner  # noqa: F401  # synthetic local prototype runner
 from psycopg_pool import AsyncConnectionPool
 
 
@@ -411,6 +413,13 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
+    if settings.env != "prod":
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["http://127.0.0.1:4173", "http://localhost:4173", "http://127.0.0.1:5173", "http://localhost:5173"],
+            allow_methods=["GET", "POST", "DELETE"],
+            allow_headers=["content-type", "authorization"],
+        )
 
     @app.middleware("http")
     async def _request_size_limit(request: Request, call_next: Any) -> JSONResponse:
@@ -741,6 +750,57 @@ def create_app() -> FastAPI:
     # Explicitly labeled, not present for prod env, not in OpenAPI schema for prod.
     # All dev routes here depend on get_current_principal to exercise the authz boundary.
     if settings.env != "prod":
+        @app.get("/__dev__/runner/catalog", include_in_schema=False, tags=["dev-only"])
+        def runner_catalog(p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            return {"synthetic": True, "fixtures": _runner.runner.catalog(), "tenant_scope": "trusted-principal"}
+
+        @app.post("/__dev__/runner/register", include_in_schema=False, tags=["dev-only"])
+        def runner_register(payload: dict[str, Any], p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            fixture_id = payload.get("fixture_id")
+            if not isinstance(fixture_id, str):
+                raise HTTPException(400, "fixture_id required")
+            try:
+                return {"registration": _runner.runner.register(p.tenant_id, fixture_id), "synthetic": True}
+            except (ValueError, OSError) as exc:
+                raise HTTPException(400, str(exc)) from exc
+
+        @app.post("/__dev__/runner/jobs", include_in_schema=False, tags=["dev-only"])
+        def runner_submit(payload: dict[str, Any], p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            fixture_id = payload.get("fixture_id")
+            if not isinstance(fixture_id, str):
+                raise HTTPException(400, "fixture_id required")
+            try:
+                return _runner.runner.submit(p.tenant_id, fixture_id)
+            except (ValueError, OSError) as exc:
+                raise HTTPException(400, str(exc)) from exc
+
+        @app.get("/__dev__/runner/jobs/{job_id}", include_in_schema=False, tags=["dev-only"])
+        def runner_status(job_id: str, p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            try:
+                return _runner.runner.get(p.tenant_id, job_id)
+            except KeyError as exc:
+                raise HTTPException(404, "job not found for authenticated tenant") from exc
+
+        @app.post("/__dev__/runner/jobs/{job_id}/review", include_in_schema=False, tags=["dev-only"])
+        def runner_review(job_id: str, payload: dict[str, Any], p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            try:
+                return _runner.runner.review(p.tenant_id, job_id, payload.get("decision", ""))
+            except KeyError as exc:
+                raise HTTPException(404, "job not found for authenticated tenant") from exc
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+
+        @app.post("/__dev__/runner/jobs/{job_id}/retry", include_in_schema=False, tags=["dev-only"])
+        def runner_retry(job_id: str, p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            try:
+                return _runner.runner.retry(p.tenant_id, job_id)
+            except KeyError as exc:
+                raise HTTPException(409, "job is not retryable for authenticated tenant") from exc
+
+        @app.delete("/__dev__/runner/teardown", include_in_schema=False, tags=["dev-only"])
+        def runner_teardown(p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            return _runner.runner.teardown(p.tenant_id)
+
         @app.post(
             "/__dev__/synthetic/ingest-preview",
             include_in_schema=False,

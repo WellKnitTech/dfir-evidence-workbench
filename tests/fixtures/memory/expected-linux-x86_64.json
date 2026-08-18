@@ -1,0 +1,19 @@
+{
+  "detection": {
+    "format": "elf-memory",
+    "reason": "ELF header"
+  },
+  "header": {
+    "architecture": "x86_64",
+    "elf_class": "64-bit",
+    "endianness": "little",
+    "elf_type": 4,
+    "machine": 62,
+    "os_abi": 0
+  },
+  "profile_validation": {
+    "requested": "linux-x86_64",
+    "status": "valid",
+    "detected_architecture": "x86_64"
+  }
+}
