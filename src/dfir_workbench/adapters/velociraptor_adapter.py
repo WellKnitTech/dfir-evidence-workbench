@@ -153,7 +153,8 @@ class VelociraptorAdapter:
                 "original_uri": self.source_path.as_uri(), "archive_validation": archive_status, "inventory": entries,
                 "safe_extraction": {"root": extraction["root"], "status": extraction["status"], "policy_version": POLICY_VERSION,
                                     "max_file_bytes": self.limits.max_file_bytes, "max_total_bytes": self.limits.max_total_bytes,
-                                    "extracted_count": len(extraction["extracted"]), "rejected_count": len(extraction["errors"]), "errors": extraction["errors"]},
+                                    "extracted": extraction["extracted"], "extracted_count": len(extraction["extracted"]),
+                                    "rejected_count": len(extraction["errors"]), "errors": extraction["errors"]},
                 "collection_coverage": self._coverage(entries), "adapter_metadata": self._metadata}
 
     def _inventory_zip(self) -> list[dict[str, Any]]:

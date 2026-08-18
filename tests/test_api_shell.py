@@ -73,8 +73,11 @@ def test_healthz_deterministic_json():
 
 
 def test_readyz_deterministic_and_wires_reviewed_modules():
-    client = TestClient(app)
-    resp = client.get("/readyz")
+    # The CI test job injects a real database URL. Use TestClient as a context
+    # manager so FastAPI runs the lifespan and opens the configured pool before
+    # readiness probes it.
+    with TestClient(app) as client:
+        resp = client.get("/readyz")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ready"
