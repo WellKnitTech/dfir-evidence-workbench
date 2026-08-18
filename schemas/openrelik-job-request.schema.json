@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/openrelik-job-request.schema.json",
+  "title": "Workbench OpenRelik Job Request",
+  "type": "object", "additionalProperties": false,
+  "required": ["contract_version", "request_id", "submitted_at_utc", "immutable_context", "execution", "idempotency", "retry_policy", "redaction_policy"],
+  "properties": {
+    "contract_version": {"const": "1.0.0"}, "request_id": {"type": "string", "minLength": 1}, "submitted_at_utc": {"type": "string", "format": "date-time"},
+    "immutable_context": {"$ref": "#/$defs/immutable_context"}, "execution": {"$ref": "#/$defs/execution"},
+    "idempotency": {"type": "object", "additionalProperties": false, "required": ["key", "scope"], "properties": {"key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"}, "scope": {"type": "string", "minLength": 1}}},
+    "retry_policy": {"type": "object", "additionalProperties": false, "required": ["max_attempts", "backoff_seconds"], "properties": {"max_attempts": {"type": "integer", "minimum": 1, "maximum": 10}, "backoff_seconds": {"type": "integer", "minimum": 0, "maximum": 86400}}},
+    "redaction_policy": {"type": "object", "additionalProperties": false, "required": ["policy_id", "version"], "properties": {"policy_id": {"type": "string", "minLength": 1}, "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}}}
+  },
+  "$defs": {
+    "immutable_context": {"type": "object", "additionalProperties": false, "required": ["tenant", "case", "asset", "evidence", "acquisition"], "properties": {
+      "tenant": {"type": "object", "additionalProperties": false, "required": ["tenant_id"], "properties": {"tenant_id": {"type": "string", "minLength": 1}}},
+      "case": {"type": "object", "additionalProperties": false, "required": ["case_id"], "properties": {"case_id": {"type": "string", "minLength": 1}}},
+      "asset": {"type": "object", "additionalProperties": false, "required": ["asset_id", "asset_type"], "properties": {"asset_id": {"type": "string", "minLength": 1}, "asset_type": {"type": "string", "minLength": 1}}},
+      "evidence": {"type": "object", "additionalProperties": false, "required": ["evidence_id", "sha256", "metadata_uri"], "properties": {"evidence_id": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "metadata_uri": {"type": "string", "minLength": 1}, "size_bytes": {"type": "integer", "minimum": 0}}},
+      "acquisition": {"type": "object", "additionalProperties": false, "required": ["acquisition_id", "method", "acquired_at_utc"], "properties": {"acquisition_id": {"type": "string", "minLength": 1}, "method": {"type": "string", "minLength": 1}, "acquired_at_utc": {"type": "string", "format": "date-time"}}}
+    }},
+    "execution": {"type": "object", "additionalProperties": false, "required": ["read_only", "tool_profile", "capability_requirements", "reviewer", "retention", "expected_outputs"], "properties": {
+      "read_only": {"const": true}, "tool_profile": {"type": "string", "minLength": 1}, "capability_requirements": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+      "reviewer": {"type": "object", "additionalProperties": false, "required": ["reviewer_id", "approval_reference"], "properties": {"reviewer_id": {"type": "string", "minLength": 1}, "approval_reference": {"type": "string", "minLength": 1}}},
+      "retention": {"type": "object", "additionalProperties": false, "required": ["policy_id", "retain_until_utc"], "properties": {"policy_id": {"type": "string", "minLength": 1}, "retain_until_utc": {"type": "string", "format": "date-time"}}},
+      "expected_outputs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["output_type", "logical_name", "required"], "properties": {"output_type": {"enum": ["report", "artifact", "log"]}, "logical_name": {"type": "string", "minLength": 1}, "required": {"type": "boolean"}}}}
+    }}
+  }
+}

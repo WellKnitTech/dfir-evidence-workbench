@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/openrelik-job-result.schema.json",
+  "title": "Workbench OpenRelik Job Result",
+  "type": "object", "additionalProperties": false,
+  "required": ["contract_version", "request_id", "workflow", "tasks", "logs", "reports", "artifacts", "provenance", "terminal_state"],
+  "properties": {
+    "contract_version": {"const": "1.0.0"}, "request_id": {"type": "string", "minLength": 1},
+    "workflow": {"type": "object", "additionalProperties": false, "required": ["workflow_id", "status", "executor"], "properties": {"workflow_id": {"type": "string", "minLength": 1}, "status": {"enum": ["queued", "running", "succeeded", "failed", "quarantined"]}, "executor": {"type": "string", "minLength": 1}}},
+    "tasks": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["task_id", "status", "attempt"], "properties": {"task_id": {"type": "string", "minLength": 1}, "status": {"enum": ["queued", "running", "succeeded", "failed", "quarantined", "skipped"]}, "attempt": {"type": "integer", "minimum": 1}, "error_code": {"type": ["string", "null"]}}}},
+    "logs": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["log_id", "task_id", "level", "message"], "properties": {"log_id": {"type": "string", "minLength": 1}, "task_id": {"type": "string", "minLength": 1}, "level": {"enum": ["debug", "info", "warning", "error"]}, "message": {"type": "string", "minLength": 1}, "redacted": {"type": "boolean"}}}},
+    "reports": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["report_id", "task_id", "sha256"], "properties": {"report_id": {"type": "string", "minLength": 1}, "task_id": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "metadata_uri": {"type": ["string", "null"]}, "size_bytes": {"type": "integer", "minimum": 0}}}},
+    "artifacts": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["artifact_id", "task_id", "sha256", "artifact_type"], "properties": {"artifact_id": {"type": "string", "minLength": 1}, "task_id": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "artifact_type": {"type": "string", "minLength": 1}, "metadata_uri": {"type": ["string", "null"]}, "size_bytes": {"type": "integer", "minimum": 0}}}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["tenant_id", "case_id", "asset_id", "evidence_id", "workflow_id", "request_id", "idempotency_key"], "properties": {"tenant_id": {"type": "string", "minLength": 1}, "case_id": {"type": "string", "minLength": 1}, "asset_id": {"type": "string", "minLength": 1}, "evidence_id": {"type": "string", "minLength": 1}, "workflow_id": {"type": "string", "minLength": 1}, "request_id": {"type": "string", "minLength": 1}, "idempotency_key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"}}},
+    "terminal_state": {"enum": ["succeeded", "failed", "quarantined"]},
+    "failure": {"type": "object", "additionalProperties": false, "required": ["code", "retryable", "message"], "properties": {"code": {"type": "string", "minLength": 1}, "retryable": {"type": "boolean"}, "message": {"type": "string", "minLength": 1}, "quarantine_reference": {"type": "string", "minLength": 1}}}
+  },
+  "allOf": [{"if": {"properties": {"terminal_state": {"enum": ["failed", "quarantined"]}}}, "then": {"required": ["failure"]}}, {"if": {"properties": {"terminal_state": {"const": "quarantined"}}}, "then": {"properties": {"failure": {"required": ["quarantine_reference"]}}}}]
+}
