@@ -36,6 +36,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -e '.[test,api]'
       - name: Run tests
         env:
+          # Test-only credentials match the Postgres service above; this is not a secret.
           DFIRWB_DATABASE_URL: postgresql://testuser:testpass@postgres:5432/testdb
         run: python -m pytest -q
       - name: Compile Python
