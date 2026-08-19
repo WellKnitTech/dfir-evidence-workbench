@@ -1,0 +1,12 @@
+[Unit]
+Description=DFIR Workbench encrypted PostgreSQL backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=dfir-backup
+EnvironmentFile=/etc/dfir-workbench/backup.env
+ExecStart=/opt/dfir-workbench/tools/backup-postgres.sh
+
+[Install]
+WantedBy=multi-user.target

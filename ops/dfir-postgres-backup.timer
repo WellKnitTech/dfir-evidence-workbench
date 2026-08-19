@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily DFIR Workbench PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=dfir-postgres-backup.service
+
+[Install]
+WantedBy=timers.target

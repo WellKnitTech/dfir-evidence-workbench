@@ -57,11 +57,11 @@ here aggregates across instances.
   (`tests/test_observability.py::test_readyz_reports_degraded_when_db_unreachable`
   exercises this without a real outage).
 
-Only the database is probed today. **Documented gap**: object/evidence
-storage and the OIDC/Entra issuer have no live readiness probe yet — a
-storage-exhaustion or auth-outage incident is detected via alerts (below) and
-manual checks, not `/readyz`. Adding those probes is the next observability
-increment; do not claim `/readyz` covers them until it does.
+The endpoint also checks the configured evidence filesystem with `statvfs`,
+reports `storage: low_space` below `DFIRWB_STORAGE_MIN_FREE_BYTES`, and in
+production verifies that issuer, audience, and a JWT verification key are
+configured. It does not make a network call to the issuer (JWT validation is
+per-request); upstream reachability remains an external monitor concern.
 
 ## 4. Alert rules
 
@@ -95,10 +95,8 @@ two conditions into PromQL rules feeding Alertmanager, e.g.:
   labels: {severity: warning}
 ```
 
-**Documented gap**: no dashboard exists yet. `/metrics` is scrape-ready for
-Grafana; a dashboard JSON (request rate/latency/error-rate panels, audit
-write-failure counter, readiness status) is the next increment, not claimed
-as done here.
+`docs/grafana-observability-dashboard.json` is an importable starter dashboard
+covering request rate, 5xx ratio, p95 latency, audit failures, and availability.
 
 ## 5. Log retention and redaction
 
@@ -145,11 +143,11 @@ commands) → **contain** → **recover** → **postmortem trigger**.
 
 ### 6.2 Storage exhaustion
 
-- **Detect**: `ElevatedHttpErrorRate` alert fires as evidence/object writes
-  start failing with disk-full errors; disk-space monitoring at the host/
-  volume level (outside this app — no in-app disk-free probe exists yet,
-  documented gap in §3) is the earlier signal and should be the primary
-  trigger in practice.
+- **Detect**: `/readyz` returns 503 with `dependencies.storage: low_space` or
+  `unreachable` when the configured evidence filesystem crosses its threshold;
+  `ElevatedHttpErrorRate` may also fire as evidence/object writes start failing
+  with disk-full errors. Host/volume monitoring remains the earlier signal and
+  should be the primary trigger in practice.
 - **Triage**: check the object-storage volume/bucket free space; check
   Postgres data volume free space separately (metadata vs. evidence bytes
   are different storage categories per `evidence-storage-layout.md`).
@@ -236,15 +234,15 @@ actually deliver in this prototype:
 
 | Component | RPO | RTO | Basis |
 |---|---|---|---|
-| Postgres metadata (cases, evidence metadata, findings, audit events) | Time since last `pg_dump`/logical backup (prototype: manual/on-demand — no automated schedule wired yet, see gap below) | Time to provision a fresh Postgres instance + `pg_restore` + smoke test (`healthz`/`readyz`/one authenticated round trip) — exercised at ~minutes for the synthetic single-row dataset in `backup-and-restore.md`; scales with data volume | `backup-and-restore.md` §"Exercise verification" (real restore run, row count verified post-restore) |
+| Postgres metadata (cases, evidence metadata, findings, audit events) | At most one scheduled interval after the timer is deployed and verified; until then, time since last manual dump | Time to provision a fresh Postgres instance + `pg_restore` + smoke test (`healthz`/`readyz`/one authenticated round trip) — exercised at ~minutes for the synthetic single-row dataset in `backup-and-restore.md`; scales with data volume | `backup-and-restore.md` §"Exercise verification" (real restore run, row count verified post-restore) |
 | Evidence objects (raw bytes, derivatives) | Per object-storage provider's replication/versioning SLA (bucket versioning + cross-region replication per `evidence-storage-layout.md`); not exercised end-to-end in this repo yet | Time to fail over to replica/restore versioned object — not exercised end-to-end in this repo yet | `evidence-storage-layout.md` (design only, documented gap) |
 
-**Documented gap**: there is no automated backup schedule (cron/systemd
-timer) in this repo yet — `backup-and-restore.md` documents and exercises
-the *manual* procedure only. Until a scheduled job exists, RPO for Postgres
-metadata is "however long since the last person ran the manual backup," not
-a fixed number. Do not report a numeric RPO to a stakeholder without either
-wiring the schedule or explicitly caveating this gap.
+The repository now includes `tools/backup-postgres.sh` plus a hardened
+systemd service/timer in `ops/`. Operators must supply an encrypted/off-host
+`DFIRWB_BACKUP_DIR` and inject `DFIRWB_DATABASE_URL` through
+`/etc/dfir-workbench/backup.env`; the timer is a deployment artifact, not an
+assumption that a developer checkout is protected. Verify the timer and run a
+restore drill before claiming the one-day schedule as an RPO.
 
 ## 8. Upgrade and rollback
 

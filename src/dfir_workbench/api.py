@@ -32,6 +32,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -101,6 +102,8 @@ class Settings(BaseSettings):
     oidc_hs256_secret: str | None = Field(default=None, repr=False)
     oidc_jwks_json: str | None = Field(default=None, repr=False)
     oidc_required_scopes: str = Field(default="cases:read")
+    storage_path: str | None = Field(default=None)
+    storage_min_free_bytes: int = Field(default=100 * 1024 * 1024, ge=0)
 
     model_config = {
         "env_prefix": "DFIRWB_",
@@ -569,8 +572,23 @@ def create_app() -> FastAPI:
             except Exception:
                 db_status = "unreachable"
 
+        storage_status = "not_configured"
+        storage_free_bytes: int | None = None
+        if s.storage_path:
+            try:
+                storage = os.statvfs(s.storage_path)
+                storage_free_bytes = storage.f_bavail * storage.f_frsize
+                storage_status = "ok" if storage_free_bytes >= s.storage_min_free_bytes else "low_space"
+            except OSError:
+                storage_status = "unreachable"
+
+        auth_status = "configured"
+        if s.env == "prod" and (not s.oidc_issuer or not s.oidc_audience or not (s.oidc_hs256_secret or s.oidc_jwks_json)):
+            auth_status = "misconfigured"
+
+        dependency_ok = db_status in ("ok", "not_configured") and storage_status in ("ok", "not_configured") and auth_status == "configured"
         body = {
-            "status": "ready" if db_status in ("ok", "not_configured") else "degraded",
+            "status": "ready" if dependency_ok else "degraded",
             "version": __version__,
             "env": s.env,
             "dependencies": {
@@ -584,7 +602,10 @@ def create_app() -> FastAPI:
                 "db_driver": "psycopg",
                 "ingest": "wired (preview/approve/commit/quarantine)",
                 "audit_sink": "wired" if s.database_url else "degraded (logging fallback only)",
+                "storage": storage_status,
+                "auth": auth_status,
             },
+            "storage_free_bytes": storage_free_bytes,
             "principal": principal_info,
             "note": (
                 "synthetic context only where explicitly labeled dev-only. "
@@ -594,7 +615,7 @@ def create_app() -> FastAPI:
             if s.env != "prod"
             else "production shell - no synthetic data",
         }
-        status_code = 200 if db_status in ("ok", "not_configured") else 503
+        status_code = 200 if dependency_ok else 503
         return JSONResponse(status_code=status_code, content=body)
 
     @app.get("/metrics", tags=["health"], include_in_schema=False)

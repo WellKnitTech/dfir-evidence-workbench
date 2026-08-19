@@ -68,6 +68,7 @@ services:
       DFIRWB_PORT: "8080"
       DFIRWB_LOG_LEVEL: info
       DFIRWB_SYNTHETIC_TENANT: ${DFIRWB_SYNTHETIC_TENANT:-synthetic-dev-org}
+      DFIRWB_STORAGE_PATH: /var/lib/dfir-evidence
       # DFIRWB_DATABASE_URL MUST come from .env or host environment ONLY (see .env.example).
       # Never embed real credentials, construct with password literals, or use POSTGRES_* for the app URL in compose templates.
       # Set in .env: DFIRWB_DATABASE_URL=postgresql://dfir:dfir-dev-pass@postgres:5432/dfir_dev

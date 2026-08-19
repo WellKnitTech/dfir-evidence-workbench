@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from .api import Principal
 
 _logger = logging.getLogger("dfir_workbench.audit")
+_REDACT_KEYS = frozenset({"authorization", "cookie", "password", "secret", "token", "api_key", "access_token", "refresh_token"})
 
 VALID_ACTOR_TYPES = frozenset({"user", "service", "job", "system"})
 VALID_RESULTS = frozenset({"success", "denied", "validation_failed", "not_found", "conflict", "error", "partial"})
@@ -53,6 +54,15 @@ class AuditEvent:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _redact(value: Any) -> Any:
+    """Keep degraded logs useful without copying credentials or bearer tokens."""
+    if isinstance(value, dict):
+        return {k: "[REDACTED]" if k.lower() in _REDACT_KEYS else _redact(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    return value
 
 
 class AuditRepository:
@@ -101,29 +111,42 @@ class AuditRepository:
 
         if self._pool is None:
             # Degraded mode: never drop the event silently. See module docstring.
-            _logger.warning("audit_sink_unavailable event=%s", json.dumps(event.as_dict(), sort_keys=True))
+            _logger.warning("audit_sink_unavailable event=%s", json.dumps(_redact(event.as_dict()), sort_keys=True))
             return event
 
-        async with self._pool.connection() as conn:
-            async with conn.cursor(row_factory=dict_row) as cur:
-                await cur.execute(
-                    """
-                    INSERT INTO dfir.audit_event
-                        (event_id, tenant_id, case_id, actor_type, actor_id,
-                         object_type, object_id, action, result, correlation_id,
-                         source, occurred_at, metadata)
-                    VALUES (%s::uuid, %s::uuid, %s, %s, %s,
-                            %s, %s, %s, %s, %s,
-                            %s, %s::timestamptz, %s::jsonb)
-                    RETURNING recorded_at::text
-                    """,
-                    (
-                        event.event_id, tenant_id, case_id, actor_type, actor_id,
-                        object_type, object_id, action, result, correlation_id,
-                        source, event.occurred_at, json.dumps(event.metadata),
-                    ),
-                )
-                row = await cur.fetchone()
+        try:
+            async with self._pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute(
+                        """
+                        INSERT INTO dfir.audit_event
+                            (event_id, tenant_id, case_id, actor_type, actor_id,
+                             object_type, object_id, action, result, correlation_id,
+                             source, occurred_at, metadata)
+                        VALUES (%s::uuid, %s::uuid, %s, %s, %s,
+                                %s, %s, %s, %s, %s,
+                                %s, %s::timestamptz, %s::jsonb)
+                        RETURNING recorded_at::text
+                        """,
+                        (
+                            event.event_id, tenant_id, case_id, actor_type, actor_id,
+                            object_type, object_id, action, result, correlation_id,
+                            source, event.occurred_at, json.dumps(event.metadata),
+                        ),
+                    )
+                    row = await cur.fetchone()
+        except Exception as exc:
+            # A pool can exist while its connection or INSERT is unavailable.
+            # Preserve the same fail-visible, redacted fallback as pool=None.
+            from . import metrics
+
+            metrics.inc_counter("audit_write_failures_total")
+            _logger.warning(
+                "audit_sink_unavailable error=%s event=%s",
+                type(exc).__name__,
+                json.dumps(_redact(event.as_dict()), sort_keys=True),
+            )
+            return event
         return AuditEvent(**{**event.as_dict(), "recorded_at": row["recorded_at"]})
 
     async def query(
