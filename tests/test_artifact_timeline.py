@@ -28,6 +28,15 @@ def test_archive_and_malformed_variants_are_explicit(tmp_path):
     assert any(error["code"] == "MALFORMED_INPUT" for error in result["errors"])
 
 
+def test_archive_rejects_nested_traversal_and_large_members(tmp_path):
+    archive = tmp_path / "unsafe.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("ok/../../escape.jsonl", '{"value": "bad"}\n')
+    result = process_artifact(archive)
+    codes = {error["code"] for error in result["errors"]}
+    assert "PATH_TRAVERSAL_REJECTED" in codes
+
+
 def test_binary_optional_formats_do_not_claim_empty_success(tmp_path):
     for name in ("events.evtx", "SYSTEM.hive"):
         path = tmp_path / name

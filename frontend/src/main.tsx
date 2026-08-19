@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ApiClient, RunnerFixture, RunnerJob } from "./api";
 import "./styles.css";
 
-const api = new ApiClient(import.meta.env.VITE_DFIRWB_API_URL ?? "http://127.0.0.1:8080");
+const api = new ApiClient(import.meta.env.VITE_DFIRWB_API_URL ?? window.location.origin);
 
 function App() {
   const [fixtures, setFixtures] = useState<RunnerFixture[]>([]);

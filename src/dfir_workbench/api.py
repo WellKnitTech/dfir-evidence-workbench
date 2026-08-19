@@ -81,6 +81,10 @@ class Settings(BaseSettings):
         default="synthetic-org-1",
         description="DEV/TEST ONLY synthetic tenant. Labeled and gated; absent from prod responses.",
     )
+    cors_origins: str = Field(
+        default="",
+        description="Optional comma-separated origins for separately hosted dev clients; same-origin proxy is the default.",
+    )
 
     # Database configuration. The URL (which may contain secrets) MUST come exclusively
     # from the DFIRWB_DATABASE_URL environment variable. No default, no fallback in source.
@@ -414,12 +418,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     if settings.env != "prod":
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["http://127.0.0.1:4173", "http://localhost:4173", "http://127.0.0.1:5173", "http://localhost:5173"],
-            allow_methods=["GET", "POST", "DELETE"],
-            allow_headers=["content-type", "authorization"],
-        )
+        cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+        if cors_origins:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=cors_origins,
+                allow_methods=["GET", "POST", "DELETE"],
+                allow_headers=["content-type", "authorization"],
+            )
 
     @app.middleware("http")
     async def _request_size_limit(request: Request, call_next: Any) -> JSONResponse:

@@ -129,12 +129,17 @@ def process_artifact(source: str | Path, *, source_timezone: str = "UTC") -> dic
     elif zipfile.is_zipfile(path):
         try:
             with zipfile.ZipFile(path) as archive:
+                total_member_bytes = 0
                 for info in sorted(archive.infolist(), key=lambda item: item.filename):
                     if info.is_dir(): continue
                     member = PurePosixPath(info.filename).as_posix()
-                    if member.startswith("../") or member.startswith("/"):
+                    if (not member or PurePosixPath(member).is_absolute() or
+                            any(part in ("", ".", "..") for part in PurePosixPath(member).parts)):
                         errors.append({"code": "PATH_TRAVERSAL_REJECTED", "source_path": member}); continue
+                    if info.file_size > 512 * 1024 * 1024 or total_member_bytes + info.file_size > 4 * 1024 * 1024 * 1024:
+                        errors.append({"code": "ARCHIVE_MEMBER_LIMIT_EXCEEDED", "source_path": member}); continue
                     member_data = archive.read(info)
+                    total_member_bytes += len(member_data)
                     member_digest = sha256_bytes(member_data)
                     parsed, member_errors = _parse_text(member_data, Path(member).suffix.lower(), f"{path}!/{member}", member_digest, source_timezone)
                     records.extend(parsed); errors.extend(member_errors)
