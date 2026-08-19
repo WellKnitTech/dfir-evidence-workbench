@@ -56,39 +56,55 @@ class LocalRunner:
         row = self._manifest_row(fixture_id)
         job_id = "job-" + uuid.uuid4().hex[:12]
         work = self.root / "tenants" / tenant_id / job_id
-        source = self.corpus_root / row["relative_path"]
         work.mkdir(mode=0o700, parents=True, exist_ok=True)
         job = {"job_id": job_id, "tenant_id": tenant_id, "fixture_id": fixture_id, "status": "processing", "progress": 10, "attempt": 1, "synthetic": True, "provenance": {"tenant_id": tenant_id, "source_sha256": row["sha256"], "source_path": row["relative_path"], "manifest": str(self.corpus_root / "manifest.jsonl")}, "work_root": str(work)}
         self.jobs[job_id] = job
+        self._run_job(job, row)
+        return self.public(job)
+
+    def _run_job(self, job: dict[str, Any], row: dict[str, Any]) -> None:
+        source = self.corpus_root / row["relative_path"]
+        work = Path(job["work_root"])
         try:
             if row["class"] == "disk":
                 result = run_disk_fixture(source, work, extract=False)
-            elif row["class"] == "memory":
-                result = DiskMemoryAdapter(source, work).normalized_record("memory_dump")
-                (work / "normalized-evidence.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                manifest_path = work / "evidence-manifest.json"
             else:
-                result = process_artifact(source)
-                (work / "artifact-result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            job.update({"status": "ready_for_review", "progress": 100, "result": result, "manifest_path": str(work / "evidence-manifest.json" if (work / "evidence-manifest.json").is_file() else work / "artifact-result.json")})
+                from .staging import EvidenceStager
+
+                def process(staged: Path) -> dict[str, Any]:
+                    if row["class"] == "memory":
+                        result = DiskMemoryAdapter(staged, work).normalized_record("memory_dump")
+                        (work / "normalized-evidence.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                        return result
+                    result = process_artifact(staged)
+                    (work / "artifact-result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                    return result
+
+                staged = EvidenceStager(source, work / "staging").run(process)
+                result = staged["result"]
+                manifest_path = work / "staging" / "evidence-manifest.json"
+            job.update({"status": "ready_for_review", "progress": 100, "result": result, "manifest_path": str(manifest_path)})
         except Exception as exc:
             job.update({"status": "error", "progress": 100, "error": {"code": type(exc).__name__, "message": str(exc), "retryable": True}})
-        return self.public(job)
 
     def public(self, job: dict[str, Any]) -> dict[str, Any]:
         return {k: v for k, v in job.items() if k not in {"work_root", "tenant_id"}}
 
     def get(self, tenant_id: str, job_id: str) -> dict[str, Any]:
         job = self.jobs.get(job_id)
-        if not job or job.get("tenant_id", tenant_id) != tenant_id:
+        if not job or job.get("tenant_id") != tenant_id:
             raise KeyError(job_id)
         return self.public(job)
 
     def review(self, tenant_id: str, job_id: str, decision: str) -> dict[str, Any]:
         job = self.jobs.get(job_id)
-        if not job or job.get("tenant_id", tenant_id) != tenant_id:
+        if not job or job.get("tenant_id") != tenant_id:
             raise KeyError(job_id)
         if decision not in {"approve", "quarantine"}:
             raise ValueError("decision must be approve or quarantine")
+        if job.get("status") != "ready_for_review":
+            raise ValueError("job is not ready for review")
         job["status"] = "approved" if decision == "approve" else "quarantined"
         job["review"] = {"decision": decision, "analyst": "trusted-principal"}
         return self.public(job)
@@ -102,7 +118,15 @@ class LocalRunner:
         ):
             raise KeyError(job_id)
         job["attempt"] += 1
-        return self.submit(tenant_id, job["fixture_id"])
+        row = self._manifest_row(job["fixture_id"])
+        shutil.rmtree(job["work_root"], ignore_errors=True)
+        Path(job["work_root"]).mkdir(mode=0o700, parents=True, exist_ok=True)
+        job.pop("result", None)
+        job.pop("error", None)
+        job.pop("review", None)
+        job.update({"status": "processing", "progress": 10})
+        self._run_job(job, row)
+        return self.public(job)
 
     def teardown(self, tenant_id: str) -> dict[str, Any]:
         tenant_jobs = [

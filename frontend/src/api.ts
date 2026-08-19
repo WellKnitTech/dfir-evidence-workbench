@@ -100,7 +100,7 @@ export interface RunnerJob {
   error?: { code: string; message: string; retryable: boolean };
 }
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:8080";
+const DEFAULT_BASE_URL = window.location.origin;
 
 export class ApiClient {
   constructor(
