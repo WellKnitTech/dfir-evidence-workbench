@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 jobs:
   quality:
@@ -63,10 +64,18 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Build immutable image
-        run: docker build --pull=false --label org.opencontainers.image.revision="$GITHUB_SHA" --tag dfir-evidence-workbench:"$GITHUB_SHA" .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ghcr.io/${{ github.repository }}:${{ github.sha }}
+        run: |
+          docker build --pull=false --label org.opencontainers.image.revision="$GITHUB_SHA" --tag "$IMAGE_REF" .
+          echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE_REF"
+          printf 'IMAGE_REF=%s\n' "$IMAGE_REF" >> "$GITHUB_ENV"
+          printf 'IMAGE_DIGEST=%s\n' "${IMAGE_REF%@*}@$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE_REF" | awk -F@ '{print $2}')" >> "$GITHUB_ENV"
       - name: Generate SBOM and scan image
         env:
-          IMAGE: dfir-evidence-workbench:${{ github.sha }}
+          IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
           TRIVY_IMAGE: docker.io/aquasec/trivy@sha256:6967db29ce5294d054121e94b3cb1262de858af63b4547bb1bade66a4306f2e4
           SYFT_IMAGE: docker.io/anchore/syft@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b
         run: |
@@ -74,6 +83,6 @@ jobs:
           ./tools/verify-supply-chain.sh --container
       - name: Sign release image (keyless on tag builds)
         if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          IMAGE: dfir-evidence-workbench:${{ github.sha }}
-        run: cosign sign --yes "$IMAGE"
+        run: |
+          cosign sign --yes "$IMAGE_DIGEST"
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "$IMAGE_DIGEST"

@@ -6,7 +6,7 @@
 # - runtime security (read_only fs, dropped caps, no-new-privs, resource limits, tmpfs)
 #   is enforced in compose.yaml / compose.*.yaml (not Dockerfile)
 # - source copied for prod build; dev overrides with volume mount
-FROM docker.io/library/python@sha256:78b39ef14d8e2b4d71f8dc304f1328c37df95fe0ef99477c2ae6bd3d03784553
+FROM docker.io/library/python@sha256:cc19a3e1085aba7d26690cf0725d9a3e083cbea0feec34ba8133d40a8ac1d399
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Create non-root user early (uid/gid chosen to avoid host conflicts in rootless Podman)
-RUN useradd -m -u 10001 -U appuser
+RUN addgroup -S -g 10001 appuser && adduser -S -D -u 10001 -G appuser appuser
 
 # Copy package metadata + source BEFORE install so editable layout and package discovery succeed in build
 COPY pyproject.toml ./
@@ -25,7 +25,8 @@ COPY --chown=appuser:appuser migrations ./migrations
 
 # Install the api extra (FastAPI + uvicorn + pydantic-settings + psycopg)
 # Use non-editable install for the baked image (dev compose will volume-mount source on top for reload)
-RUN python -m pip install --disable-pip-version-check --no-cache-dir -r requirements-api.lock && \
+RUN python -m pip install --disable-pip-version-check --no-cache-dir --upgrade wheel==0.46.2 jaraco.context==6.1.0 && \
+    python -m pip install --disable-pip-version-check --no-cache-dir -r requirements-api.lock && \
     python -m pip install --disable-pip-version-check --no-cache-dir --no-build-isolation --no-deps . && \
     rm -rf /root/.cache/pip /root/.cache
 
