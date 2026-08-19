@@ -1,6 +1,6 @@
 # Reproducible release path
 
-The production compose file is a deployment manifest, not a development build. It has no `build:` stanza and no source bind mount. `DFIRWB_API_IMAGE` must be supplied by the deployment system as a registry reference containing `@sha256:<digest>`. PostgreSQL and the Dockerfile base image are committed by digest.
+The production compose file is a deployment manifest, not a development build. It has no `build:` stanza and no source bind mount. `DFIRWB_API_IMAGE` must be supplied by the deployment system as a registry reference containing `@sha256:<digest>`. PostgreSQL and the Dockerfile's Python Alpine base image are committed by digest.
 
 ## Local gates
 
@@ -29,9 +29,9 @@ Build with the pinned Dockerfile base:
 docker build --pull=false --tag registry.example/dfir-api:$GIT_SHA .
 ```
 
-CI runs Syft (SPDX JSON), Trivy vulnerability/license scanning, and Trivy secret scanning using digest-pinned tool images. High and critical image findings fail the job. The generated `sbom.spdx.json` is a build artifact and is not part of the runtime image.
+CI runs Syft (SPDX JSON), Trivy vulnerability/license scanning, and Trivy secret scanning using digest-pinned tool images. High and critical image findings fail the job; the current pinned base-image result is recorded in `docs/release-risk-acceptance.md`. The generated `sbom.spdx.json` is a build artifact and is not part of the runtime image.
 
-A release image must be signed or attested after it is pushed. The tag workflow enables Sigstore keyless identity and runs `cosign sign --yes`; deployments must verify the signature and the SBOM attestation before promotion.
+A release image is pushed to GHCR under its commit tag only after the quality, compose, vulnerability, license, and secret gates pass. Tag builds then sign the exact pushed digest with Sigstore keyless identity and attach the SPDX SBOM with `cosign attest`; deployments must verify both the signature and the SBOM attestation before promotion.
 
 ## Publishing and rollback
 
