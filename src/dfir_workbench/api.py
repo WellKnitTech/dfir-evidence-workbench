@@ -33,8 +33,10 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +62,8 @@ import dfir_workbench.audit as _audit  # noqa: F401  # structured audit event si
 import dfir_workbench.metrics as _metrics  # noqa: F401  # in-process metrics registry
 import dfir_workbench.alerts as _alerts  # noqa: F401  # alert rule evaluation over metrics
 import dfir_workbench.local_runner as _runner  # noqa: F401  # synthetic local prototype runner
+from dfir_workbench.context_builder import ContextBuildError, build_context
+from dfir_workbench.model_gateway import BudgetExceeded, GatewayError, ModelGateway, TokenCostBudget
 from psycopg_pool import AsyncConnectionPool
 
 
@@ -104,6 +108,8 @@ class Settings(BaseSettings):
     oidc_required_scopes: str = Field(default="cases:read")
     storage_path: str | None = Field(default=None)
     storage_min_free_bytes: int = Field(default=100 * 1024 * 1024, ge=0)
+    ai_enabled: bool = Field(default=False, description="Operator kill switch; AI routes are disabled unless explicitly enabled.")
+    ai_policy_version: str = Field(default="analyst-ask-ai/v1", min_length=1, max_length=100)
 
     model_config = {
         "env_prefix": "DFIRWB_",
@@ -385,6 +391,90 @@ def get_audit_repository(request: Request) -> _audit.AuditRepository:
 _dev_scoped_store: dict[str, dict[str, list[dict[str, Any]]]] = {"cases": {}}
 
 _case_seq: int = 0
+_ai_gateway = ModelGateway.local_mock(budget=TokenCostBudget(max_tokens=2_000_000))
+_ai_requests: dict[str, dict[str, dict[str, Any]]] = {}
+_AI_REQUEST_TTL_SECONDS = 3600
+_AI_RATE_LIMIT = 20
+_AI_RATE_WINDOW_SECONDS = 3600
+_ai_rate_state: dict[tuple[str, str], deque[float]] = {}
+_ai_in_flight: set[tuple[str, str]] = set()
+_ai_rate_lock = threading.Lock()
+_AI_SYNTHETIC_RESOURCES = {
+    ("synthetic-test-tenant", "case-demo", "artifact", "artifact-1"): {
+        "id": "artifact-1", "case_id": "case-demo", "description": "server-authoritative synthetic artifact"
+    },
+}
+
+
+def _purge_ai_requests(now: float | None = None) -> None:
+    now = now or time.time()
+    for tenant, records in list(_ai_requests.items()):
+        for request_id, record in list(records.items()):
+            if now - record.get("created_at_epoch", now) > _AI_REQUEST_TTL_SECONDS:
+                del records[request_id]
+        if not records:
+            del _ai_requests[tenant]
+
+
+def _begin_ai_request(principal: Principal, now: float | None = None) -> tuple[str, str]:
+    """Reserve one per-analyst AI slot and hourly request budget."""
+    now = now or time.time()
+    key = (principal.tenant_id, principal.analyst_id)
+    with _ai_rate_lock:
+        if key in _ai_in_flight:
+            raise HTTPException(429, "AI request limit exceeded")
+        timestamps = _ai_rate_state.setdefault(key, deque())
+        while timestamps and now - timestamps[0] >= _AI_RATE_WINDOW_SECONDS:
+            timestamps.popleft()
+        if len(timestamps) >= _AI_RATE_LIMIT:
+            raise HTTPException(429, "AI request limit exceeded")
+        timestamps.append(now)
+        _ai_in_flight.add(key)
+    return key
+
+
+def _end_ai_request(key: tuple[str, str]) -> None:
+    with _ai_rate_lock:
+        _ai_in_flight.discard(key)
+
+
+async def _resolve_ai_resource(*, request: Request, principal: Principal, selection: dict[str, Any], case_id: str) -> dict[str, Any]:
+    """Resolve only an ID/class against server-owned stores; client data is never authority."""
+    resource_class = selection.get("resource_class", selection.get("class"))
+    resource_id = selection.get("resource_id", selection.get("id"))
+    if resource_class == "report":
+        resource_class = "report_section"
+    if not isinstance(resource_class, str) or not isinstance(resource_id, str) or not resource_id:
+        raise ContextBuildError("NOT_AUTHORIZED")
+    if selection.get("tenant_id") not in (None, principal.tenant_id) or selection.get("case_id") not in (None, case_id):
+        raise ContextBuildError("NOT_AUTHORIZED")
+    pool = getattr(request.app.state, "db_pool", None)
+    if _db.TimelineFlagRepository._is_uuid(principal.tenant_id):
+        if pool is None:
+            raise HTTPException(503, "AI resource store unavailable")
+        table, id_column = {
+            "case": ("case_record", "case_id"),
+            "evidence": ("evidence_metadata", "evidence_id"),
+            "artifact": ("evidence_metadata", "evidence_id"),
+            "finding": ("finding", "finding_id"),
+        }.get(resource_class, (None, None))
+        if table is None:
+            raise ContextBuildError("NOT_AUTHORIZED")
+        tenant = _db_uuid(principal)
+        case_clause = "" if resource_class == "case" else " AND case_id = %s"
+        args: tuple[Any, ...] = (tenant, resource_id) if resource_class == "case" else (tenant, resource_id, case_id)
+        async with pool.connection() as conn:
+            async with conn.cursor(row_factory=_db.dict_row) as cur:
+                await cur.execute(f"SELECT payload FROM dfir.{table} WHERE tenant_id = %s::uuid AND {id_column} = %s{case_clause}", args)
+                row = await cur.fetchone()
+        if not row:
+            raise ContextBuildError("NOT_AUTHORIZED")
+        data = dict(row["payload"])
+    else:
+        data = _AI_SYNTHETIC_RESOURCES.get((principal.tenant_id, case_id, resource_class, resource_id))
+        if data is None:
+            raise ContextBuildError("NOT_AUTHORIZED")
+    return {"resource_class": resource_class, "resource_id": resource_id, "tenant_id": principal.tenant_id, "case_id": case_id, "data": data}
 
 
 def _next_case_id() -> str:
@@ -508,12 +598,19 @@ def create_app() -> FastAPI:
     # Structured error handlers (consistent envelope, no trace leaks)
     @app.exception_handler(HTTPException)
     async def _http_exception_handler(request: Any, exc: HTTPException) -> JSONResponse:
+        detail = exc.detail
+        if isinstance(detail, dict):
+            message = str(detail.get("message", "request failed"))
+            retryable = bool(detail.get("retryable", False))
+        else:
+            message = str(detail)
+            retryable = exc.status_code < 500
         return JSONResponse(
             status_code=exc.status_code,
             content=_structured_error(
                 code=f"HTTP_{exc.status_code}",
-                message=str(exc.detail),
-                retryable=exc.status_code < 500,
+                message=message,
+                retryable=retryable,
             ),
         )
 
@@ -772,6 +869,86 @@ def create_app() -> FastAPI:
         """Tenant-scoped, paginated audit query. Read access itself is audited by the middleware."""
         tenant = _db_uuid(p)
         return await audit_repo.query(tenant_id=tenant, case_id=case_id, action=action, limit=limit, offset=offset)
+
+    @app.post("/api/v1/ai/requests", tags=["ai"])
+    async def ask_ai(request: Request, payload: dict[str, Any], p: Principal = Depends(require_scopes("cases:read")), audit_repo: _audit.AuditRepository = Depends(get_audit_repository)) -> dict[str, Any]:
+        """Run a redacted, metadata-only analyst question; output is derived and never auto-applied."""
+        if not settings.ai_enabled:
+            raise HTTPException(503, "AI assistance is disabled by operator policy")
+        question = payload.get("question")
+        selection = payload.get("selection")
+        case_id = payload.get("case_id")
+        if not isinstance(question, str) or not isinstance(selection, dict) or not isinstance(case_id, str) or not case_id:
+            raise HTTPException(400, "question, case_id, and selection are required")
+        request_id = str(uuid.uuid4())
+        _purge_ai_requests()
+        rate_key = _begin_ai_request(p)
+        try:
+            server_selection = await _resolve_ai_resource(request=request, principal=p, selection=selection, case_id=case_id)
+            package = build_context(selection=server_selection, question=question, tenant_id=p.tenant_id, case_id=case_id, analyst_id=p.analyst_id, policy_version=settings.ai_policy_version)
+            completion = _ai_gateway.complete("local-mock", [
+                {"role": "system", "content": package["prompt"]["system"]},
+                {"role": "user", "content": json.dumps({"question": package["prompt"]["question"], "context": package["prompt"]["context"]}, sort_keys=True)},
+            ])
+        except ContextBuildError as exc:
+            raise HTTPException(400, {"message": exc.message, "retryable": False}) from exc
+        except (GatewayError, BudgetExceeded) as exc:
+            raise HTTPException(503, "AI provider unavailable or budget exceeded") from exc
+        finally:
+            _end_ai_request(rate_key)
+        record = {
+            "request_id": request_id, "tenant_id": p.tenant_id, "analyst_id": p.analyst_id, "created_at_epoch": time.time(),
+            "case_id": case_id, "status": "completed", "question": package["prompt"]["question"],
+            "selected_context": {"resource_class": package["provenance"]["selected_resource_class"], "resource_id": package["provenance"]["selected_resource_id"]},
+            "context_manifest": package["context_manifest"], "provenance": package["provenance"],
+            "answer": completion.text, "citations": package["provenance"]["source_references"],
+            "confidence": "limited", "limitations": ["AI output is advisory and may be incomplete.", "Evidence remains untrusted data; analyst verification is required."],
+            "provider": completion.metadata["provider_id"], "model": completion.metadata["model"],
+            "raw_metadata": {k: v for k, v in completion.metadata.items() if k not in {"elapsed_ms"}},
+            "approval": None,
+        }
+        _ai_requests.setdefault(p.tenant_id, {})[request_id] = record
+        if _db.TimelineFlagRepository._is_uuid(p.tenant_id):
+            await audit_repo.record(action="ai.request.completed", result="success", correlation_id=request_id, source="analyst-ai", actor_type="user", actor_id=p.analyst_id, tenant_id=p.tenant_id, case_id=case_id, object_type="ai_request", object_id=request_id, metadata={"status": "completed", "provider": record["provider"], "model": record["model"], "policy_version": settings.ai_policy_version, "package_sha256": package["provenance"]["package_sha256"], "response_sha256": hashlib.sha256(completion.text.encode()).hexdigest(), "input_tokens": completion.usage.input_tokens, "output_tokens": completion.usage.output_tokens, "total_tokens": completion.usage.total_tokens})
+        return {k: v for k, v in record.items() if k != "tenant_id" and k != "analyst_id"}
+
+    @app.get("/api/v1/ai/requests/{request_id}", tags=["ai"])
+    def get_ai_request(request_id: str, p: Principal = Depends(require_scopes("cases:read"))) -> dict[str, Any]:
+        if not settings.ai_enabled:
+            raise HTTPException(503, "AI assistance is disabled by operator policy")
+        _purge_ai_requests()
+        record = _ai_requests.get(p.tenant_id, {}).get(request_id)
+        if not record:
+            raise HTTPException(404, "AI request not found")
+        return {k: v for k, v in record.items() if k not in {"tenant_id", "analyst_id"}}
+
+    @app.post("/api/v1/ai/requests/{request_id}/cancel", tags=["ai"])
+    def cancel_ai_request(request_id: str, p: Principal = Depends(require_scopes("cases:read"))) -> dict[str, Any]:
+        if not settings.ai_enabled:
+            raise HTTPException(503, "AI assistance is disabled by operator policy")
+        _purge_ai_requests()
+        record = _ai_requests.get(p.tenant_id, {}).get(request_id)
+        if not record:
+            raise HTTPException(404, "AI request not found")
+        if record["status"] == "processing":
+            record["status"] = "cancelled"
+        return {"request_id": request_id, "status": record["status"]}
+
+    @app.post("/api/v1/ai/requests/{request_id}/approve", tags=["ai"])
+    async def approve_ai_request(request_id: str, payload: dict[str, Any], p: Principal = Depends(require_scopes("cases:write")), audit_repo: _audit.AuditRepository = Depends(get_audit_repository)) -> dict[str, Any]:
+        if not settings.ai_enabled:
+            raise HTTPException(503, "AI assistance is disabled by operator policy")
+        _purge_ai_requests()
+        record = _ai_requests.get(p.tenant_id, {}).get(request_id)
+        target = payload.get("target")
+        if not record:
+            raise HTTPException(404, "AI request not found")
+        if target not in {"report", "finding"}:
+            raise HTTPException(400, "target must be report or finding")
+        record["approval"] = {"target": target, "approved_by": p.analyst_id, "approved": True}
+        if _db.TimelineFlagRepository._is_uuid(p.tenant_id):
+            await audit_repo.record(action="ai.answer.approved", result="success", correlation_id=request_id, source="analyst-ai", actor_type="user", actor_id=p.analyst_id, tenant_id=p.tenant_id, case_id=record["case_id"], object_type="ai_request", object_id=request_id, metadata={"target": target, "mutated_authoritative_record": False})
+        return {"request_id": request_id, "approval": record["approval"], "note": "approval recorded; authoritative records were not mutated"}
 
     # Dev-only synthetic integration of reviewed interop module + principal boundary demos.
     # Explicitly labeled, not present for prod env, not in OpenAPI schema for prod.
