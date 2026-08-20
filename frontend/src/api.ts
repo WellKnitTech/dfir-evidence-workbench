@@ -100,6 +100,22 @@ export interface RunnerJob {
   error?: { code: string; message: string; retryable: boolean };
 }
 
+export interface AiRequest {
+  request_id: string;
+  status: string;
+  selected_context: { resource_class: string; resource_id: string };
+  context_manifest: Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  answer: string;
+  citations: Record<string, unknown>[];
+  confidence: string;
+  limitations: string[];
+  provider: string;
+  model: string;
+  raw_metadata: Record<string, unknown>;
+  approval: { target: string; approved: boolean } | null;
+}
+
 const DEFAULT_BASE_URL = window.location.origin;
 
 export class ApiClient {
@@ -220,6 +236,14 @@ export class ApiClient {
 
   runnerTeardown(): Promise<Record<string, unknown>> {
     return this.request("/__dev__/runner/teardown", { method: "DELETE" });
+  }
+
+  askAi(payload: Record<string, unknown>): Promise<AiRequest> {
+    return this.request("/api/v1/ai/requests", { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  approveAi(requestId: string, target: "report" | "finding"): Promise<Record<string, unknown>> {
+    return this.request(`/api/v1/ai/requests/${encodeURIComponent(requestId)}/approve`, { method: "POST", body: JSON.stringify({ target }) });
   }
 }
 

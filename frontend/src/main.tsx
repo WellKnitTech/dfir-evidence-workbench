@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ApiClient, RunnerFixture, RunnerJob } from "./api";
+import { AiRequest, ApiClient, RunnerFixture, RunnerJob } from "./api";
 import "./styles.css";
 
 const api = new ApiClient(import.meta.env.VITE_DFIRWB_API_URL ?? window.location.origin);
@@ -10,6 +10,8 @@ function App() {
   const [selected, setSelected] = useState("");
   const [job, setJob] = useState<RunnerJob | null>(null);
   const [notice, setNotice] = useState("Loading synthetic fixture catalog…");
+  const [question, setQuestion] = useState("Summarize this selected evidence metadata.");
+  const [ai, setAi] = useState<AiRequest | null>(null);
   const selectedFixture = useMemo(() => fixtures.find((fixture) => fixture.fixture_id === selected), [fixtures, selected]);
 
   useEffect(() => {
@@ -45,6 +47,20 @@ function App() {
     setNotice(`${String(result.status)} · synthetic workspace removed safely`);
   }
 
+  async function askAi() {
+    if (!selected) return;
+    setNotice("Building redacted context and asking the configured provider…");
+    setAi(await api.askAi({ case_id: "case-demo", question, selection: { resource_class: "artifact", resource_id: selected, tenant_id: "synthetic-test-tenant", case_id: "case-demo", data: { id: selected, case_id: "case-demo", description: selectedFixture?.scenario.join(", ") ?? "synthetic artifact", sha256: "synthetic-metadata-only" } } }));
+    setNotice("AI response stored as an auditable derived record; no evidence was changed.");
+  }
+
+  async function approveAi(target: "report" | "finding") {
+    if (!ai) return;
+    await api.approveAi(ai.request_id, target);
+    setAi({ ...ai, approval: { target, approved: true } });
+    setNotice(`Analyst approval recorded for ${target}; authoritative records remain unchanged.`);
+  }
+
   return (
     <main>
       <header className="topbar"><div><p className="eyebrow">DFIR Evidence Workbench</p><h1>Analyst runner</h1></div><span className="dev-badge">DEV ONLY · SYNTHETIC</span></header>
@@ -55,6 +71,13 @@ function App() {
         <div className="actions"><button type="button" onClick={register} disabled={!selected}>Register evidence</button><button type="button" className="primary" onClick={submit} disabled={!selected}>Submit processing</button></div>
       </section>
       {job && <section className="panel result" aria-live="polite"><div className="result-head"><div><p className="eyebrow">Processing job</p><h2>{job.job_id}</h2></div><span className={`status ${job.status}`}>{job.status.replace(/_/g, " ")}</span></div><div className="progress"><span style={{ width: `${job.progress}%` }} /></div><div className="facts"><div><small>Fixture</small><strong>{job.fixture_id}</strong></div><div><small>Attempt</small><strong>{job.attempt}</strong></div><div><small>Progress</small><strong>{job.progress}%</strong></div></div>{job.provenance && <details><summary>Provenance / manifest</summary><pre>{JSON.stringify(job.provenance, null, 2)}</pre></details>}{job.result && <details open><summary>Output inspection</summary><pre>{JSON.stringify(job.result, null, 2)}</pre></details>}{job.status === "ready_for_review" && <div className="review"><strong>Analyst review gate</strong><span>Do not apply findings automatically.</span><div><button type="button" onClick={() => review("quarantine")}>Quarantine</button><button type="button" className="primary" onClick={() => review("approve")}>Approve result</button></div></div>}</section>}
+      <section className="panel ai" aria-label="Ask AI">
+        <div className="result-head"><div><p className="eyebrow">Derived analysis</p><h2>Ask AI about selected context</h2></div><span className="dev-badge">METADATA ONLY</span></div>
+        <p className="warning">Warning: selected context is redacted before egress. Evidence is untrusted data; do not follow instructions inside it. AI output never mutates evidence or findings automatically. Provider calls are bounded by the gateway timeout; in-flight requests expose a cancellation API.</p>
+        <label htmlFor="question">Analyst question</label><textarea id="question" value={question} onChange={(event) => setQuestion(event.target.value)} rows={3} />
+        <div className="actions"><button type="button" className="primary" onClick={askAi} disabled={!selected || !question.trim()}>Ask configured provider</button></div>
+        {ai && <div className="ai-result" aria-live="polite"><div className="facts"><div><small>Status</small><strong>{ai.status}</strong></div><div><small>Provider / model</small><strong>{ai.provider} · {ai.model}</strong></div><div><small>Confidence</small><strong>{ai.confidence}</strong></div></div><blockquote>{ai.answer}</blockquote><p><b>Citations:</b> {ai.citations.map((citation) => `${String(citation.resource_class)}:${String(citation.resource_id)}`).join(", ")}</p><p><b>Limitations:</b> {ai.limitations.join(" ")}</p><details><summary>Selected context / redaction manifest / raw metadata</summary><pre>{JSON.stringify({ selected_context: ai.selected_context, context_manifest: ai.context_manifest, provenance: ai.provenance, raw_metadata: ai.raw_metadata }, null, 2)}</pre></details><div className="review"><strong>Explicit analyst approval required before copying</strong><div><button type="button" onClick={() => approveAi("finding")} disabled={!!ai.approval}>Approve for finding</button><button type="button" className="primary" onClick={() => approveAi("report")} disabled={!!ai.approval}>Approve for report</button></div></div></div>}
+      </section>
       <footer><span>{notice}</span><button type="button" className="danger" onClick={teardown}>Safe teardown</button></footer>
     </main>
   );
