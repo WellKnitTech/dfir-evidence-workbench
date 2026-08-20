@@ -63,6 +63,8 @@ function App() {
     await api.approveAi(ai.request_id, target);
     setAi({ ...ai, approval: { target, approved: true } });
     setNotice(`Analyst approval recorded for ${target}; authoritative records remain unchanged.`);
+  }
+
   async function analyzeEmail() {
     if (!email) return;
     setNotice("MXRay is parsing metadata locally; raw evidence stays server-side…");

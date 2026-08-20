@@ -1,4 +1,5 @@
 import hashlib
+import zipfile
 from email.message import EmailMessage
 
 from dfir_workbench.mxray_contract import build_idempotency_key
@@ -92,3 +93,47 @@ def test_msg_is_fail_closed_as_unsupported(tmp_path):
 
     assert result["terminal_state"] == "failed"
     assert result["failure"]["code"] == "PARSER_UNSUPPORTED"
+
+
+def test_archive_inspection_value_error_rejects_attachment_and_keeps_message_metadata(tmp_path, monkeypatch):
+    message = EmailMessage()
+    message["From"] = "sender@example.test"
+    message["Subject"] = "Archive"
+    message.set_content("body")
+    message.add_attachment(b"corrupt", maintype="application", subtype="zip", filename="bad.zip")
+    data = message.as_bytes()
+    source = tmp_path / "mail.eml"
+    source.write_bytes(data)
+
+    def raise_value_error(_payload):
+        raise ValueError("negative seek")
+
+    monkeypatch.setattr(zipfile, "is_zipfile", raise_value_error)
+    result = MXRayWorker().process(_request(data), source)
+
+    assert result["terminal_state"] == "succeeded"
+    assert result["message"]["subject"] == "Archive"
+    assert result["attachments"][0]["status"] == "rejected"
+    assert any("archive inspection failed" in limitation.lower() for limitation in result["limitations"])
+
+
+def test_archive_inspection_bad_zip_file_does_not_escape_process(tmp_path, monkeypatch):
+    message = EmailMessage()
+    message.set_content("body")
+    message.add_attachment(b"corrupt", maintype="application", subtype="zip", filename="bad.zip")
+    data = message.as_bytes()
+    source = tmp_path / "mail.eml"
+    source.write_bytes(data)
+
+    monkeypatch.setattr(zipfile, "is_zipfile", lambda _payload: True)
+
+    class RaisingZipFile:
+        def __init__(self, *_args, **_kwargs):
+            raise zipfile.BadZipFile("central directory missing")
+
+    monkeypatch.setattr(zipfile, "ZipFile", RaisingZipFile)
+    result = MXRayWorker().process(_request(data), source)
+
+    assert result["terminal_state"] == "succeeded"
+    assert result["attachments"][0]["status"] == "rejected"
+    assert "PARSER_ERROR" not in str(result)

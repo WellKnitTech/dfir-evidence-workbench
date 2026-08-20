@@ -160,18 +160,23 @@ class MXRayWorker:
                 limitations.append(f"Attachment limit exceeded for {filename}.")
             total += len(payload)
             attachment = {"attachment_id": _id("attachment", source_id), "source_id": source_id, "media_type": part.get_content_type() or mimetypes.guess_type(filename)[0] or "application/octet-stream", "size_bytes": len(payload), "sha256": digest, "status": status}
-            if status == "analyzed" and zipfile.is_zipfile(io.BytesIO(payload)):
-                with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-                    members = archive.infolist()
-                    unsafe = any(not _safe_archive_name(member.filename) or stat.S_ISLNK((member.external_attr >> 16) & 0xFFFF) for member in members)
-                    if unsafe:
-                        attachment["status"] = "rejected"
-                        limitations.append(f"Unsafe archive member rejected for {filename}.")
-                    elif len(members) > limits["max_archive_members"]:
-                        attachment["status"] = "rejected"
-                        limitations.append(f"Archive member limit exceeded for {filename}.")
-                    else:
-                        findings.append({"finding_id": _id("finding", source_id + "archive"), "category": "archive", "title": "Archive attachment inspected", "confidence": "confirmed", "summary": f"Archive contains {len(members)} bounded member(s); no files were extracted.", "source_ids": [source_id]})
+            if status == "analyzed":
+                try:
+                    if zipfile.is_zipfile(io.BytesIO(payload)):
+                        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                            members = archive.infolist()
+                            unsafe = any(not _safe_archive_name(member.filename) or stat.S_ISLNK((member.external_attr >> 16) & 0xFFFF) for member in members)
+                            if unsafe:
+                                attachment["status"] = "rejected"
+                                limitations.append(f"Unsafe archive member rejected for {filename}.")
+                            elif len(members) > limits["max_archive_members"]:
+                                attachment["status"] = "rejected"
+                                limitations.append(f"Archive member limit exceeded for {filename}.")
+                            else:
+                                findings.append({"finding_id": _id("finding", source_id + "archive"), "category": "archive", "title": "Archive attachment inspected", "confidence": "confirmed", "summary": f"Archive contains {len(members)} bounded member(s); no files were extracted.", "source_ids": [source_id]})
+                except (zipfile.BadZipFile, ValueError, OSError) as exc:
+                    attachment["status"] = "rejected"
+                    limitations.append(f"Archive inspection failed for {filename}: {type(exc).__name__}.")
             attachments.append(attachment)
         if len(findings) > limits["max_findings"]:
             raise MXRayWorkerError("FINDING_LIMIT_EXCEEDED", "finding limit exceeded", quarantine=True)
