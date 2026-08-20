@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/mxray-email-job-result.schema.json",
+  "title": "Workbench MXRay Email Job Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "workflow", "toolchain", "capabilities", "message", "findings", "attachments", "safe_html", "citations", "limitations", "reports", "artifacts", "provenance", "audit", "terminal_state"],
+  "properties": {
+    "contract_version": {"const": "1.0.0"}, "request_id": {"$ref": "#/$defs/id"},
+    "workflow": {"type": "object", "additionalProperties": false, "required": ["workflow_id", "status", "worker_version"], "properties": {"workflow_id": {"$ref": "#/$defs/id"}, "status": {"enum": ["queued", "running", "succeeded", "failed", "quarantined"]}, "worker_version": {"type": "string", "minLength": 1}}},
+    "toolchain": {"type": "object", "additionalProperties": true}, "capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "message": {"$ref": "#/$defs/message"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "attachments": {"type": "array", "items": {"$ref": "#/$defs/attachment"}},
+    "safe_html": {"type": "object", "additionalProperties": false, "required": ["status", "artifact_id"], "properties": {"status": {"enum": ["not_requested", "generated", "omitted", "failed"]}, "artifact_id": {"type": ["string", "null"]}, "sha256": {"type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$"}}},
+    "citations": {"type": "array", "items": {"$ref": "#/$defs/citation"}},
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "reports": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["tenant_id", "case_id", "evidence_id", "source_id", "source_sha256", "idempotency_key"], "properties": {"tenant_id": {"$ref": "#/$defs/id"}, "case_id": {"$ref": "#/$defs/id"}, "evidence_id": {"$ref": "#/$defs/id"}, "source_id": {"$ref": "#/$defs/id"}, "source_sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "idempotency_key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"}}},
+    "audit": {"type": "object", "additionalProperties": false, "required": ["events", "egress"], "properties": {"events": {"type": "array", "items": {"$ref": "#/$defs/audit_event"}}, "egress": {"enum": ["none", "allowlisted_external"]}}},
+    "terminal_state": {"enum": ["succeeded", "failed", "quarantined"]},
+    "failure": {"type": "object", "additionalProperties": false, "required": ["code", "retryable", "message"], "properties": {"code": {"type": "string", "minLength": 1}, "retryable": {"type": "boolean"}, "message": {"type": "string", "minLength": 1}, "quarantine_reference": {"type": "string", "minLength": 1}}}
+  },
+  "allOf": [{"if": {"properties": {"terminal_state": {"enum": ["failed", "quarantined"]}}}, "then": {"required": ["failure"]}}, {"if": {"properties": {"terminal_state": {"const": "quarantined"}}}, "then": {"properties": {"failure": {"required": ["quarantine_reference"]}}}}],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"},
+    "message": {"type": "object", "additionalProperties": false, "required": ["message_id", "subject", "date_utc", "from", "to", "headers"], "properties": {"message_id": {"type": "string", "minLength": 1}, "subject": {"type": ["string", "null"]}, "date_utc": {"type": ["string", "null"], "format": "date-time"}, "from": {"type": ["string", "null"]}, "to": {"type": "array", "items": {"type": "string"}}, "cc": {"type": "array", "items": {"type": "string"}}, "headers": {"type": "object", "additionalProperties": {"type": "string"}}, "authentication": {"type": "object"}, "routing": {"type": "object"}}},
+    "finding": {"type": "object", "additionalProperties": false, "required": ["finding_id", "category", "title", "confidence", "summary", "source_ids"], "properties": {"finding_id": {"$ref": "#/$defs/id"}, "category": {"enum": ["authentication", "routing", "spoofing", "identity", "archive", "macro", "pdf", "yara", "ioc", "other"]}, "title": {"type": "string", "minLength": 1}, "confidence": {"enum": ["confirmed", "high", "possible", "not_established"]}, "summary": {"type": "string", "minLength": 1}, "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "external": {"type": "boolean"}, "unverified": {"type": "boolean"}}},
+    "attachment": {"type": "object", "additionalProperties": false, "required": ["attachment_id", "source_id", "media_type", "size_bytes", "sha256", "status"], "properties": {"attachment_id": {"$ref": "#/$defs/id"}, "source_id": {"type": "string", "minLength": 1}, "media_type": {"type": "string", "minLength": 1}, "size_bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "status": {"enum": ["analyzed", "skipped", "rejected", "quarantined"]}, "findings": {"type": "array", "items": {"$ref": "#/$defs/id"}}}},
+    "citation": {"type": "object", "additionalProperties": false, "required": ["citation_id", "source_id", "kind", "detail"], "properties": {"citation_id": {"$ref": "#/$defs/id"}, "source_id": {"type": "string", "minLength": 1}, "kind": {"enum": ["header", "body", "attachment", "parser", "tool"]}, "detail": {"type": "string", "minLength": 1}}},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["artifact_id", "artifact_type", "sha256", "size_bytes", "metadata_uri"], "properties": {"artifact_id": {"$ref": "#/$defs/id"}, "artifact_type": {"enum": ["report", "safe_html", "manifest", "log", "attachment_analysis"]}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "size_bytes": {"type": "integer", "minimum": 0}, "metadata_uri": {"type": "string", "minLength": 1}}},
+    "audit_event": {"type": "object", "additionalProperties": false, "required": ["event_id", "event_type", "at_utc"], "properties": {"event_id": {"$ref": "#/$defs/id"}, "event_type": {"type": "string", "minLength": 1}, "at_utc": {"type": "string", "format": "date-time"}, "detail": {"type": "string"}, "tenant_id": {"type": "string"}, "case_id": {"type": "string"}, "evidence_id": {"type": "string"}, "source_sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "decision": {"type": "string"}}}
+  }
+}

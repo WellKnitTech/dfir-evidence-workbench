@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfir-evidence-workbench.local/schemas/mxray-email-job-request.schema.json",
+  "title": "Workbench MXRay Email Job Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "submitted_at_utc", "context", "input", "toolchain", "policies", "limits", "idempotency", "audit"],
+  "properties": {
+    "contract_version": {"const": "1.0.0"},
+    "request_id": {"$ref": "#/$defs/id"},
+    "submitted_at_utc": {"type": "string", "format": "date-time"},
+    "context": {"$ref": "#/$defs/context"},
+    "input": {"$ref": "#/$defs/input"},
+    "toolchain": {"$ref": "#/$defs/toolchain"},
+    "policies": {"$ref": "#/$defs/policies"},
+    "limits": {"$ref": "#/$defs/limits"},
+    "idempotency": {"type": "object", "additionalProperties": false, "required": ["key", "scope"], "properties": {"key": {"type": "string", "pattern": "^v1:[A-Za-z0-9_-]{43}$"}, "scope": {"type": "string", "minLength": 1}}},
+    "audit": {"type": "object", "additionalProperties": false, "required": ["correlation_id", "requested_by", "event_type"], "properties": {"correlation_id": {"$ref": "#/$defs/id"}, "requested_by": {"$ref": "#/$defs/id"}, "event_type": {"const": "mxray.email.analyze"}}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"},
+    "context": {"type": "object", "additionalProperties": false, "required": ["tenant_id", "case_id", "evidence_id", "source_id"], "properties": {"tenant_id": {"$ref": "#/$defs/id"}, "case_id": {"$ref": "#/$defs/id"}, "evidence_id": {"$ref": "#/$defs/id"}, "source_id": {"$ref": "#/$defs/id"}}},
+    "input": {"type": "object", "additionalProperties": false, "required": ["media_type", "sha256", "size_bytes", "staged_uri", "read_only"], "properties": {"media_type": {"enum": ["eml", "msg", "pst", "ost", "mbox", "mbx"]}, "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}, "size_bytes": {"type": "integer", "minimum": 0}, "staged_uri": {"type": "string", "minLength": 1}, "read_only": {"const": true}}},
+    "toolchain": {"type": "object", "additionalProperties": false, "required": ["worker_version", "mxray_version", "parser_versions"], "properties": {"worker_version": {"type": "string", "minLength": 1}, "mxray_version": {"type": "string", "minLength": 1}, "parser_versions": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}}}},
+    "policies": {"type": "object", "additionalProperties": false, "required": ["analysis", "enrichment"], "properties": {"analysis": {"type": "object", "additionalProperties": false, "required": ["capabilities", "policy_id", "version"], "properties": {"capabilities": {"type": "array", "uniqueItems": true, "items": {"enum": ["message_metadata", "authentication", "routing", "spoofing", "identity", "attachments", "archives", "macros", "pdf", "yara", "ioc", "safe_html", "reports"]}}, "policy_id": {"type": "string", "minLength": 1}, "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}}}, "enrichment": {"type": "object", "additionalProperties": false, "required": ["enabled", "network_egress", "providers", "approval_required"], "properties": {"enabled": {"type": "boolean"}, "network_egress": {"enum": ["disabled", "allowlisted"]}, "providers": {"type": "array", "uniqueItems": true, "items": {"enum": ["virustotal", "dns"]}}, "approval_required": {"const": true}}}}},
+    "limits": {"type": "object", "additionalProperties": false, "required": ["max_attachment_bytes", "max_total_attachment_bytes", "max_archive_members", "max_html_bytes", "max_findings", "max_report_bytes"], "properties": {"max_attachment_bytes": {"type": "integer", "minimum": 1}, "max_total_attachment_bytes": {"type": "integer", "minimum": 1}, "max_archive_members": {"type": "integer", "minimum": 1}, "max_html_bytes": {"type": "integer", "minimum": 1}, "max_findings": {"type": "integer", "minimum": 1}, "max_report_bytes": {"type": "integer", "minimum": 1}}}
+  }
+}
