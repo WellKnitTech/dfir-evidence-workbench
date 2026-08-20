@@ -1,0 +1,17 @@
+{
+  "title": "DFIR Evidence Workbench",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "HTTP request rate", "targets": [{"expr": "sum(rate(http_requests_total[5m]))", "legendFormat": "requests/s"}]},
+    {"id": 2, "type": "timeseries", "title": "HTTP 5xx rate", "targets": [{"expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))", "legendFormat": "5xx ratio"}]},
+    {"id": 3, "type": "timeseries", "title": "Request latency p95", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95 seconds"}]},
+    {"id": 4, "type": "stat", "title": "Audit sink failures", "targets": [{"expr": "sum(audit_write_failures_total)", "legendFormat": "failures"}]},
+    {"id": 5, "type": "stat", "title": "Ready instances", "targets": [{"expr": "sum(up{job=\"dfir-workbench\"})", "legendFormat": "up"}]}
+  ],
+  "annotations": {"list": []},
+  "templating": {"list": []},
+  "notes": "Import into Grafana and configure the Prometheus datasource. Alert rules are documented in observability-and-incident-operations.md."
+}

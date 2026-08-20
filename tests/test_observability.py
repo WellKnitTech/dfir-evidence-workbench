@@ -71,9 +71,34 @@ async def test_audit_repository_degrades_to_logging_without_pool(caplog):
 
     repo = AuditRepository(pool=None)
     with caplog.at_level(logging.WARNING, logger="dfir_workbench.audit"):
-        event = await repo.record(action="evidence.access", result="success", correlation_id="c2")
+        event = await repo.record(action="evidence.access", result="success", correlation_id="c2", metadata={"token": "do-not-log", "safe": "ok"})
     assert event.recorded_at is None
     assert any("audit_sink_unavailable" in r.message for r in caplog.records)
+    assert "do-not-log" not in caplog.records[-1].message
+    assert "[REDACTED]" in caplog.records[-1].message
+
+
+@pytest.mark.asyncio
+async def test_audit_repository_degrades_to_logging_when_insert_fails(caplog):
+    from unittest.mock import AsyncMock, MagicMock
+
+    pool = MagicMock()
+    connection = MagicMock()
+    connection.__aenter__ = AsyncMock(side_effect=RuntimeError("connection refused"))
+    connection.__aexit__ = AsyncMock(return_value=False)
+    pool.connection.return_value = connection
+
+    repo = AuditRepository(pool=pool)
+    with caplog.at_level("WARNING", logger="dfir_workbench.audit"):
+        event = await repo.record(
+            action="evidence.access",
+            result="success",
+            correlation_id="c3",
+            metadata={"access_token": "do-not-log"},
+        )
+    assert event.recorded_at is None
+    assert "do-not-log" not in caplog.records[-1].message
+    assert "[REDACTED]" in caplog.records[-1].message
 
 
 @pytest.mark.asyncio
@@ -142,6 +167,23 @@ def test_readyz_reports_degraded_when_db_unreachable():
     finally:
         api_mod.settings = original_settings
         app.state.db_pool = prev_pool
+
+
+def test_readyz_reports_storage_and_prod_auth_dependencies():
+    from dfir_workbench import api as api_mod
+    original_settings = api_mod.settings
+    previous_pool = getattr(app.state, "db_pool", None)
+    try:
+        api_mod.settings = Settings(env="prod", storage_path="/definitely/missing", database_url=None)
+        app.state.db_pool = None
+        response = TestClient(app).get("/readyz")
+        assert response.status_code == 503
+        dependencies = response.json()["dependencies"]
+        assert dependencies["storage"] == "unreachable"
+        assert dependencies["auth"] == "misconfigured"
+    finally:
+        api_mod.settings = original_settings
+        app.state.db_pool = previous_pool
 
 
 def test_alert_conditions_fire_on_synthetic_metric_state():

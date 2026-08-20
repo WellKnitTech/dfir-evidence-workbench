@@ -96,6 +96,7 @@ services:
       DFIRWB_HOST: 0.0.0.0
       DFIRWB_PORT: "8080"
       DFIRWB_LOG_LEVEL: warning
+      DFIRWB_STORAGE_PATH: /var/lib/dfir-evidence
       # No DFIRWB_SYNTHETIC_TENANT in prod
       # DFIRWB_DATABASE_URL provided via secret (example)
       # DFIRWB_DATABASE_URL_FILE: /run/secrets/DFIRWB_DATABASE_URL

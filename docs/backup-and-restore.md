@@ -60,6 +60,25 @@
 - Retain backup manifests with: timestamp, DFIRWB git SHA, migration versions, image digests, synthetic fixture hashes, restore verification output.
 - Separate strategy for evidence object storage (versioned buckets, WORM, cross-region replication).
 
+### Scheduled logical backup artifact
+
+This repository provides `tools/backup-postgres.sh` and the example
+`ops/dfir-postgres-backup.service`/`.timer`. Install the units on a dedicated
+backup host (or equivalent scheduler), create `/etc/dfir-workbench/backup.env`
+with mode 0600, and set only secret-manager-provided values:
+
+```ini
+DFIRWB_DATABASE_URL=postgresql://backup-user@db.example/dfir
+DFIRWB_BACKUP_DIR=/srv/dfir-backups
+DFIRWB_BACKUP_RETENTION_DAYS=30
+```
+
+The script writes a custom-format dump and SHA-256 sidecar atomically, removes
+expired dumps, and never prints the connection string. The destination must be
+encrypted and off-host; a local directory alone is not a disaster-recovery
+backup. Verify installation with `systemctl list-timers dfir-postgres-backup`
+and perform a restore drill before treating the daily timer as an RPO.
+
 ## Exercise verification (synthetic data)
 See below for commands run during this task's verification. Restore must succeed and data (envelopes, flags) must be queryable under correct tenant scope.
 
