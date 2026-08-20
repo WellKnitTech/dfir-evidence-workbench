@@ -100,6 +100,9 @@ export interface RunnerJob {
   error?: { code: string; message: string; retryable: boolean };
 }
 
+export interface MXRayEvidence { evidence_id: string; subject: string; media_type: string; sha256: string; size_bytes: number; status: string; review_state: string }
+export interface MXRayJob { job_id: string; status: string; review_required?: boolean; review?: Record<string, unknown>; result: Record<string, any> }
+
 const DEFAULT_BASE_URL = window.location.origin;
 
 export class ApiClient {
@@ -221,6 +224,10 @@ export class ApiClient {
   runnerTeardown(): Promise<Record<string, unknown>> {
     return this.request("/__dev__/runner/teardown", { method: "DELETE" });
   }
+
+  mxrayEvidence(): Promise<{ items: MXRayEvidence[]; synthetic: boolean }> { return this.request("/__dev__/mxray/evidence"); }
+  mxrayAnalyze(evidenceId: string): Promise<MXRayJob> { return this.request("/__dev__/mxray/analyze", { method: "POST", body: JSON.stringify({ evidence_id: evidenceId }) }); }
+  mxrayReview(jobId: string, decision: "approve" | "quarantine"): Promise<MXRayJob> { return this.request(`/__dev__/mxray/jobs/${encodeURIComponent(jobId)}/review`, { method: "POST", body: JSON.stringify({ decision }) }); }
 }
 
 function qs(params: Record<string, unknown>): string {
