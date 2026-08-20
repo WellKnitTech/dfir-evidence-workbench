@@ -39,3 +39,15 @@ test("API retry preserves the job identity and attempt through the browser origi
   const conflict = await request.post(`/__dev__/runner/jobs/${job.job_id}/review`, { data: { decision: "approve" } });
   expect(conflict.ok()).toBeTruthy();
 });
+
+test("MXRay email review keeps raw evidence out of the browser and gates approval", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Synthetic analyst review" })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze with MXRay" }).click();
+  await expect(page.getByText("ready for review", { exact: false })).toBeVisible();
+  await expect(page.getByText("Analyst findings and provenance")).toBeVisible();
+  await expect(page.getByText("Case-report approval gate")).toBeVisible();
+  await expect(page.getByText("raw_message", { exact: false })).toHaveCount(0);
+  await page.getByRole("button", { name: "Approve findings" }).click();
+  await expect(page.locator(".status.approved")).toBeVisible();
+});

@@ -37,6 +37,8 @@ import threading
 import time
 import uuid
 from collections import deque
+from datetime import datetime, timezone
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,6 +66,8 @@ import dfir_workbench.alerts as _alerts  # noqa: F401  # alert rule evaluation o
 import dfir_workbench.local_runner as _runner  # noqa: F401  # synthetic local prototype runner
 from dfir_workbench.context_builder import ContextBuildError, build_context
 from dfir_workbench.model_gateway import BudgetExceeded, GatewayError, ModelGateway, TokenCostBudget
+from dfir_workbench.mxray_contract import build_idempotency_key
+from dfir_workbench.mxray_worker import MXRayWorker
 from psycopg_pool import AsyncConnectionPool
 
 
@@ -954,6 +958,84 @@ def create_app() -> FastAPI:
     # Explicitly labeled, not present for prod env, not in OpenAPI schema for prod.
     # All dev routes here depend on get_current_principal to exercise the authz boundary.
     if settings.env != "prod":
+        _mxray_jobs: dict[str, dict[str, Any]] = {}
+        _mxray_jobs_by_key: dict[tuple[str, str], str] = {}
+
+        def _mxray_public(result: dict[str, Any]) -> dict[str, Any]:
+            """Return bounded analyst metadata; never return raw message/body bytes."""
+            value = json.loads(json.dumps(result))
+            headers = value.get("message", {}).get("headers", {})
+            value.setdefault("message", {})["headers"] = {
+                key: text for key, text in headers.items()
+                if key.lower() not in {"authorization", "cookie", "x-api-key", "set-cookie"}
+            }
+            return value
+
+        def _mxray_source() -> tuple[Path, str]:
+            from email.message import EmailMessage
+            source = _runner.runner.root / "mxray" / "synthetic-message.eml"
+            source.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if not source.exists():
+                message = EmailMessage()
+                message["From"] = "sender@example.test"
+                message["To"] = "analyst@example.test"
+                message["Subject"] = "Synthetic analyst review"
+                message["Date"] = "Thu, 20 Aug 2026 12:00:00 +0000"
+                message["Authentication-Results"] = "mx.example.test; dkim=pass; spf=softfail"
+                message["Received"] = "from relay.example.test"
+                message.set_content("Synthetic message body for local testing.")
+                message.add_alternative("<p>Synthetic message body.</p>", subtype="html")
+                message.add_attachment(b"synthetic attachment", maintype="application", subtype="octet-stream", filename="sample.bin")
+                source.write_bytes(message.as_bytes())
+            return source, hashlib.sha256(source.read_bytes()).hexdigest()
+
+        @app.get("/__dev__/mxray/evidence", include_in_schema=False, tags=["dev-only"])
+        def mxray_evidence(p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
+            source, digest = _mxray_source()
+            return {"synthetic": True, "items": [{"evidence_id": "email-synthetic-001", "subject": "Synthetic analyst review", "media_type": "eml", "sha256": digest, "size_bytes": source.stat().st_size, "status": "staged", "review_state": "unreviewed"}]}
+
+        @app.post("/__dev__/mxray/analyze", include_in_schema=False, tags=["dev-only"])
+        def mxray_analyze(payload: dict[str, Any], p: Principal = Depends(require_scopes("cases:write"))) -> dict[str, Any]:
+            if payload.get("evidence_id") != "email-synthetic-001":
+                raise HTTPException(404, "email evidence not found")
+            source, digest = _mxray_source()
+            source_id, case_id, evidence_id = "email-source-001", "synthetic-case-001", "email-synthetic-001"
+            key = build_idempotency_key(tenant_id=p.tenant_id, case_id=case_id, evidence_id=evidence_id, source_id=source_id, sha256=digest, worker_version="1.0.0")
+            request_payload = {
+                "contract_version": "1.0.0", "request_id": "request-" + uuid.uuid4().hex[:12], "submitted_at_utc": datetime.now(timezone.utc).isoformat(),
+                "context": {"tenant_id": p.tenant_id, "case_id": case_id, "evidence_id": evidence_id, "source_id": source_id},
+                "input": {"media_type": "eml", "sha256": digest, "size_bytes": source.stat().st_size, "staged_uri": "evidence://synthetic/email-synthetic-001", "read_only": True},
+                "toolchain": {"worker_version": "1.0.0", "mxray_version": "stdlib-core-1.0.0", "parser_versions": {"email": "stdlib"}},
+                "policies": {"analysis": {"capabilities": ["message_metadata", "authentication", "routing", "attachments", "archives", "reports"], "policy_id": "workbench-default", "version": "1.0.0"}, "enrichment": {"enabled": False, "network_egress": "disabled", "providers": [], "approval_required": True}},
+                "limits": {"max_attachment_bytes": 10_000_000, "max_total_attachment_bytes": 50_000_000, "max_archive_members": 100, "max_html_bytes": 1_000_000, "max_findings": 100, "max_report_bytes": 1_000_000},
+                "idempotency": {"key": key, "scope": f"{p.tenant_id}/{case_id}"}, "audit": {"correlation_id": "corr-" + uuid.uuid4().hex[:12], "requested_by": p.analyst_id, "event_type": "mxray.email.analyze"},
+            }
+            result = MXRayWorker().process(request_payload, source)
+            dedupe_key = (p.tenant_id, key)
+            existing_job_id = _mxray_jobs_by_key.get(dedupe_key)
+            if existing_job_id:
+                existing = _mxray_jobs[existing_job_id]
+                return {"job_id": existing_job_id, "status": existing["status"], "review_required": existing["status"] == "ready_for_review", "result": _mxray_public(existing["result"])}
+            job_id = "mxray-" + uuid.uuid4().hex[:12]
+            status = "ready_for_review" if result["terminal_state"] == "succeeded" else result["terminal_state"]
+            _mxray_jobs[job_id] = {"result": result, "status": status, "tenant_id": p.tenant_id, "request": request_payload}
+            _mxray_jobs_by_key[dedupe_key] = job_id
+            return {"job_id": job_id, "status": status, "review_required": status == "ready_for_review", "result": _mxray_public(result)}
+
+        @app.post("/__dev__/mxray/jobs/{job_id}/review", include_in_schema=False, tags=["dev-only"])
+        def mxray_review(job_id: str, payload: dict[str, Any], p: Principal = Depends(require_scopes("cases:write"))) -> dict[str, Any]:
+            job = _mxray_jobs.get(job_id)
+            if not job or job["tenant_id"] != p.tenant_id:
+                raise HTTPException(404, "MXRay job not found")
+            decision = payload.get("decision")
+            if decision not in {"approve", "quarantine"} or job["status"] != "ready_for_review":
+                raise HTTPException(400, "decision must approve or quarantine and job must be ready for review")
+            job["status"] = "approved" if decision == "approve" else "quarantined"
+            job["review"] = {"decision": decision, "analyst_id": p.analyst_id, "approved_findings": decision == "approve"}
+            provenance = job["result"]["provenance"]
+            job["result"]["audit"]["events"].append({"event_id": "event-" + uuid.uuid4().hex[:16], "event_type": "mxray.email.review", "at_utc": datetime.now(timezone.utc).isoformat(), "detail": "analyst review decision", "tenant_id": provenance["tenant_id"], "case_id": provenance["case_id"], "evidence_id": provenance["evidence_id"], "source_sha256": provenance["source_sha256"], "decision": decision})
+            return {"job_id": job_id, "status": job["status"], "review": job["review"], "result": _mxray_public(job["result"])}
+
         @app.get("/__dev__/runner/catalog", include_in_schema=False, tags=["dev-only"])
         def runner_catalog(p: Principal = Depends(get_current_principal)) -> dict[str, Any]:
             return {"synthetic": True, "fixtures": _runner.runner.catalog(), "tenant_scope": "trusted-principal"}
