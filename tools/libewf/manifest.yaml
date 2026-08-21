@@ -1,0 +1,9 @@
+schema_version: 1
+source: https://github.com/libyal/libewf
+version: 20240506
+license: LGPL-3.0-or-later
+artifact_sha256: capture-at-build-from-official-release
+network_policy: none
+input_mount: /input:ro
+output_mount: /output:rw
+status: unavailable-unpinned

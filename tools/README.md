@@ -15,6 +15,11 @@ A production installer must:
 7. Keep the installed tool environment separate from the core application.
 8. Avoid installing excluded tools without a separate license review.
 
+`forensic-tools.json` is the authoritative capability lifecycle manifest for
+libewf, Sleuth Kit, Volatility 3, ETL tooling, dfVFS/Plaso, ExifTool, and YARA.
+Run `python tools/check-forensic-tools.py` to validate it; unavailable or
+license-review entries deliberately fail closed when an artifact is requested.
+
 This directory intentionally does not ship a downloader that guesses release
 URLs or executes unverified binaries. That is a supply-chain control, not a
 missing feature. The current Kanban work must add the implementation only after

@@ -33,6 +33,8 @@ if not lock or any(line and not line.startswith(('#', '-')) and '==' not in line
 print('static supply-chain checks: PASS')
 PY
 
+python tools/check-forensic-tools.py
+
 if [[ "${1:-}" == "--container" ]]; then
   : "${IMAGE:?IMAGE must name the built image}"
   : "${TRIVY_IMAGE:?TRIVY_IMAGE must be a pinned trivy image reference}"

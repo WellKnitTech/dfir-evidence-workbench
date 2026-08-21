@@ -1,0 +1,6 @@
+{
+  "classes": {"windows-etl": "event_log", "windows-event-log": "event_log", "windows-crash-dump": "memory_dump", "vmcore": "memory_dump", "elf-memory": "memory_dump", "raw-memory": "memory_dump"},
+  "event_log": {"memory_artifacts": false, "parser": "bounded-timeline", "records": [], "structured_findings": false, "source_type": "event_log"},
+  "malformed_or_unsupported": {"empty": "raw-memory", "structured_findings": false},
+  "schema": "dfir-memory-classification/v1"
+}
