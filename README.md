@@ -15,6 +15,7 @@ as implemented.
 - Safe UAC archive/directory inventory and allowlisted extraction
 - Safe Velociraptor ZIP/directory inventory and allowlisted extraction
 - Experimental disk/memory evidence metadata adapter
+- Optional read-only EWF/libewf segment inventory and raw/IMG Sleuth Kit workflow
 - Normalized evidence schema
 - TheHive/DFIR-IRIS-shaped ingest envelope and interoperable entity schemas
 - Additive PostgreSQL timeline-flag migration (requires live-schema review)
@@ -27,6 +28,8 @@ as implemented.
 - The disk/memory adapter does not yet provide verified native TSK access for
   VHD/VMDK/EWF or full QCOW2/VHDX coverage. It must not be represented as a
   complete forensic image processor.
+- Native TSK/libewf parsers remain unavailable unless independently pinned and
+  installed; missing capabilities fail visibly and never claim structured results.
 - The resumable multi-run processing model is specified but not yet integrated.
 - The provenance domain implementation is being re-integrated after its
   Kanban scratch workspace was garbage-collected; no unverified reconstruction

@@ -7,6 +7,7 @@ from typing import Any
 
 from .adapters.disk_memory_adapter import DiskMemoryAdapter
 from .staging import EvidenceStager
+from .tsk_workflow import run_tsk_raw_image
 
 
 def run_disk_fixture(source: str | Path, analysis_root: str | Path, *, extract: bool = False) -> dict[str, Any]:
@@ -46,3 +47,8 @@ def run_disk_fixture(source: str | Path, analysis_root: str | Path, *, extract: 
         "record": record,
         "extraction": extraction,
     }
+
+
+def run_tsk_fixture(source: str | Path, analysis_root: str | Path, *, partition_index: int | None = None) -> dict[str, Any]:
+    """Run the optional native Sleuth Kit path; missing tools are explicit."""
+    return run_tsk_raw_image(source, analysis_root, partition_index=partition_index)
