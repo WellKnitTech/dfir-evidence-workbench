@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import ewf
+
 ZERO_SHA256 = "0" * 64
 SUPPORTED_IMAGES = {"raw", "img", "vhd", "vhdx", "vmdk", "qcow2", "ewf"}
 
@@ -46,15 +48,28 @@ def detect_image(path: Path) -> tuple[str, str]:
     if size >= 512 and _read(path, size - 512, 8) == b"conectix": return "vhd", "VHD footer (conectix)"
     if head[:8] == b"vmdk\x00\x00\x00\x00" or b"# Disk DescriptorFile" in head[:1024]: return "vmdk", "VMDK signature/descriptor"
     if head[:4] == b"QFI\xfb": return "qcow2", "QCOW2 magic"
-    if head[:4] == b"EVF\x09\x0d\x0a\xff": return "ewf", "Expert Witness Format"
+    if head[:8] == b"EVF\x09\x0d\x0a\xff\x00": return "ewf", "Expert Witness Format"
     return "raw", "raw byte stream"
 
 def detect_memory(path: Path) -> tuple[str, str]:
     h = _read(path, 0, 4096)
+    suffix = path.suffix.lower()
+    # Acquisition tooling may rename ETL files to memdump.mem; classify these
+    # before any memory markers and never claim memory findings for them.
+    if suffix == ".evtx" or (h[:8] == b"ElfFile\x00" and b"ElfChnk" in _read(path, 4096, 4096)):
+        return "windows-event-log", "Windows event-log header/chunk"
+    if suffix == ".etl" or h[:8] == b"ElfFile\x00" or h[:4] == b"ETL\x00":
+        return "windows-etl", "Windows ETL/event-trace marker"
     if h[:4] == b"\x7fELF": return "elf-memory", "ELF header"
     if h[:4] in (b"DUMP", b"DU64") or b"PAGE" in h[:64]: return "windows-crash-dump", "Windows dump marker"
-    if h[:8] == b"VMCORE\x00": return "vmcore", "vmcore marker"
+    if h[:7] == b"VMCORE\x00": return "vmcore", "vmcore marker"
     return "raw-memory", "no recognized dump header; treated as opaque bytes"
+
+
+def _event_log_result(path: Path, fmt: str, reason: str, limit: int = 1024 * 1024) -> dict[str, Any]:
+    return {"format": fmt, "detection": reason, "parser": "bounded-timeline", "status": "unavailable",
+            "records": [], "scanned_bytes": min(path.stat().st_size, limit), "scan_limit_bytes": limit,
+            "limitations": ["ETL/event-log binary parser is not bundled; no events inferred"]}
 
 def _parse_mbr(path: Path) -> tuple[int, list[dict[str, Any]]]:
     b = _read(path, 0, 512)
@@ -112,7 +127,11 @@ class DiskMemoryAdapter:
         kind, signature=(detect_image(self.evidence) if source_type=="disk_image" else detect_memory(self.evidence))
         warnings=[]
         if source_type=="disk_image" and kind not in SUPPORTED_IMAGES: raise AdapterError("UNSUPPORTED_FORMAT", "unsupported disk image format")
-        if source_type=="disk_image" and kind in ("vmdk","qcow2","ewf"): warnings.append("container recognized; partition parsing requires a readable raw view or native image tool")
+        if source_type=="disk_image" and kind in ("vmdk","qcow2"): warnings.append("container recognized; partition parsing requires a readable raw view or native image tool")
+        if source_type=="disk_image" and kind=="ewf":
+            ok, reason = ewf.limits_ok(self.evidence, max_file_bytes=self.max_file_bytes, max_total_bytes=self.max_total_bytes)
+            if not ok: raise AdapterError("FILE_LIMIT_EXCEEDED", reason or "EWF limits exceeded")
+            warnings.append("EWF metadata is available; raw view requires optional libewf/ewfmount")
         return {"source_type":source_type,"detected_format":kind,"signature":signature,"status":"valid","warnings":warnings,"sha256":sha256(self.evidence),"size":self.evidence.stat().st_size}
 
     def inventory(self, source_type: str) -> dict[str,Any]:
@@ -120,10 +139,22 @@ class DiskMemoryAdapter:
         entries=[{"path":self.evidence.name,"size":st.st_size,"mtime":utc(st.st_mtime),"sha256":v["sha256"],"kind":"file","allocated":True,"source_id":"source"}]
         out={"validation":v,"inventory":entries,"coverage":{"status":"substantial","filesystem_metadata":False,"allocated_files":False,"deleted_files":False,"unallocated_space":False,"memory_artifacts":source_type=="memory_dump","network_artifacts":False,"notes":[]}}
         if source_type=="memory_dump":
-            fmt,reason=detect_memory(self.evidence); out["memory_dump"]={"format":fmt,"detection":reason,"size_bytes":st.st_size,"sha256":v["sha256"]}; out["coverage"]["notes"].append("memory is represented as one opaque evidence artifact; no process/profile claims are made")
+            fmt,reason=detect_memory(Path(self.evidence)); out["memory_dump"]={"format":fmt,"detection":reason,"size_bytes":st.st_size,"sha256":v["sha256"],"workflow":"header-and-profile-validation","profile_required":True,"structured_findings":"not_claimed"}; out["coverage"]["notes"].append("memory is represented as one opaque evidence artifact; no process/profile claims are made")
+            if fmt in ("windows-etl", "windows-event-log"):
+                out.pop("memory_dump")
+                out["event_log"] = _event_log_result(Path(self.evidence), fmt, reason)
+                out["coverage"]["memory_artifacts"] = False
+                out["coverage"]["event_log_artifacts"] = True
+                out["coverage"]["notes"][-1] = "event log routed to bounded timeline parsing; no memory findings are claimed"
         else:
-            sector,parts=_partitions(self.evidence); out["partition_filesystem"]={"image_format":v["detected_format"],"sector_size":sector,"partitions":parts}
-            out["coverage"]["filesystem_metadata"]=bool(parts); out["coverage"]["notes"].append("file inventory is limited to source/container bytes unless a filesystem reader is available")
+            if v["detected_format"] == "ewf":
+                out["ewf"] = ewf.inventory(self.evidence, max_total_bytes=self.max_total_bytes)
+                out["tool"] = ewf.tool_info()
+                out["partition_filesystem"] = {"image_format":"ewf","sector_size":512,"partitions":[]}
+                out["coverage"]["notes"].append("EWF segment metadata is inventoried; filesystem inventory requires a readable libewf raw view")
+            else:
+                sector,parts=_partitions(Path(self.evidence)); out["partition_filesystem"]={"image_format":v["detected_format"],"sector_size":sector,"partitions":parts}
+                out["coverage"]["filesystem_metadata"]=bool(parts); out["coverage"]["notes"].append("file inventory is limited to source/container bytes unless a filesystem reader is available")
         return out
 
     def extract(self, relative_paths: list[str], output_root: str | Path | None = None) -> dict[str,Any]:
@@ -148,13 +179,25 @@ class DiskMemoryAdapter:
 
     def report(self, source_type: str) -> dict[str,Any]:
         inv=self.inventory(source_type)
-        return {"source_type":source_type,"evidence_id":self.evidence_id,"validation":inv["validation"],"inventory_count":len(inv["inventory"]),"coverage":inv["coverage"],"partition_filesystem":inv.get("partition_filesystem"),"memory_dump":inv.get("memory_dump"),"limitations":inv["coverage"]["notes"]}
+        result={"source_type":source_type,"evidence_id":self.evidence_id,"validation":inv["validation"],"inventory_count":len(inv["inventory"]),"coverage":inv["coverage"],"partition_filesystem":inv.get("partition_filesystem"),"memory_dump":inv.get("memory_dump"),"event_log":inv.get("event_log"),"limitations":inv["coverage"]["notes"]}
+        if source_type == "memory_dump":
+            from ..memory_analysis import capability_report
+            result["memory_capabilities"] = capability_report()
+        return result
 
     def normalized_record(self, source_type: str) -> dict[str,Any]:
         inv=self.inventory(source_type); root=str(self.root)
         r={"schema_version":"1.0","evidence_id":self.evidence_id,"source_type":source_type,"original_uri":self.evidence.as_uri(),"archive_validation":{"kind":"none","status":"not_applicable"},"inventory":inv["inventory"],"safe_extraction":{"root":root,"status":"not_requested","policy_version":"safe-extraction-1","max_file_bytes":self.max_file_bytes,"max_total_bytes":self.max_total_bytes,"extracted_count":0,"rejected_count":0,"errors":[]},"collection_coverage":inv["coverage"],"adapter_metadata":{"validation":inv["validation"]}}
-        if source_type=="disk_image": r["partition_filesystem"]=inv["partition_filesystem"]
-        else: r["adapter_metadata"]["memory_dump"]=inv["memory_dump"]
+        if source_type=="disk_image":
+            r["partition_filesystem"]=inv["partition_filesystem"]
+            if "ewf" in inv:
+                r["adapter_metadata"]["ewf"] = inv["ewf"]
+                r["adapter_metadata"]["libewf"] = inv["tool"]
+        else:
+            if "event_log" in inv:
+                r["adapter_metadata"]["event_log"] = inv["event_log"]
+                r["source_type"] = "event_log"
+            else: r["adapter_metadata"]["memory_dump"]=inv["memory_dump"]
         return r
 
 def main():

@@ -13,3 +13,6 @@ copy every upstream license/NOTICE file into `third_party/licenses/`, and run a
 separate redistribution review. In particular, TSK has mixed component terms,
 and Velociraptor and MISP modules are AGPL-licensed. Volatility 3 and Sigma
 rules are intentionally not included in the approved install set.
+For optional forensic tooling, `tools/forensic-tools.json` is the authoritative
+lifecycle record. It intentionally marks artifacts without independently verified
+checksums as unavailable and does not bundle binaries, rules, or client evidence.

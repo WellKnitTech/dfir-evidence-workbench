@@ -1,0 +1,14 @@
+{
+  "cases": [
+    {"id": "windows-etl", "name": "memdump.mem", "prefix_hex": "456c6646696c6500"},
+    {"id": "windows-event-log", "name": "events.evtx", "prefix_hex": "456c6646696c6500"},
+    {"id": "windows-etl-marker", "name": "trace.etl", "prefix_hex": "45544c00"},
+    {"id": "windows-crash-dump", "name": "crash.mem", "prefix_hex": "44554d50"},
+    {"id": "vmcore", "name": "vmcore.mem", "prefix_hex": "564d434f524500"},
+    {"id": "elf-memory", "name": "linux.mem", "prefix_hex": "7f454c46"},
+    {"id": "raw-memory", "name": "opaque.mem", "prefix_hex": "6e6f742d612d6b6e6f776e2d686561646572"},
+    {"id": "unsupported-short", "name": "empty.mem", "prefix_hex": ""}
+  ],
+  "synthetic": true,
+  "policy": "inert bytes only"
+}

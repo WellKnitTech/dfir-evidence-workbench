@@ -10,6 +10,14 @@ policy: official-source-only
 redistribution: disabled-by-default
 
 approved:
+  - name: libewf
+    version: 20240506
+    source: https://github.com/libyal/libewf
+    license: LGPL-3.0-or-later
+    checksum: capture-at-build-from-official-release
+    isolation: rootless-container-only
+    capabilities: [ewf-segment-metadata, read-only-raw-view]
+    notes: Never mount evidence read-write; retain exact release checksum and notices.
   - name: sleuthkit
     version: 4.15.0
     source: https://github.com/sleuthkit/sleuthkit
