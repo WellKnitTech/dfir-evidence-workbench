@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "kind": "public-reference-p0-registry",
+  "status": "conditionally_registered",
+  "policy": "external reference evidence; outside corpus-v1; read-only analysis only; never commit binaries",
+  "source_manifest_path_operator_local": "/var/home/jwellnitz/projects/AgenticForensicsTesting/ForensicsTestImage/PublicReference/P0/acquisition-manifest.json",
+  "source_manifest_sha256": "79be847d08ae555a16e098cdc8cb0e77a214174c1c7953f1798483650a4e6893",
+  "retrieved_utc": "2026-08-20",
+  "independent_review_utc": "2026-08-22T18:05:00Z",
+  "review_task": "t_45bad142",
+  "parent_validation_task": "t_b40858cd",
+  "counts": {
+    "evidence_items": 9,
+    "directory_files_including_manifest": 10,
+    "publisher_hash_flag_true": 6,
+    "publisher_hash_flag_false": 3,
+    "unexpected_files": 0,
+    "partials": 0,
+    "publisher_digest_values_present": 0,
+    "publisher_expected_size_fields_present": 0
+  },
+  "registration_defaults": {
+    "class": "public-reference",
+    "read_only": true,
+    "execution_prohibited": true,
+    "redistribution_review_required": true,
+    "publisher_hash_status": "not_independently_verified",
+    "corpus_v1": false,
+    "ci_bundle": false
+  },
+  "signatures": {
+    "ewf": 4,
+    "zip": 3,
+    "rar": 1,
+    "7z": 1
+  },
+  "archive_integrity": {
+    "zip": "passed",
+    "rar": "passed",
+    "7z": "passed"
+  },
+  "host_tool_probe_utc": "2026-08-22T18:05:00Z",
+  "host_tools": {
+    "file": "available",
+    "sha256sum": "available",
+    "unzip": "available",
+    "unrar": "available",
+    "7z": "available",
+    "ewfinfo": "unavailable",
+    "ewfmount": "unavailable",
+    "ewfverify": "unavailable",
+    "mmls": "unavailable",
+    "fsstat": "unavailable",
+    "fls": "unavailable",
+    "img_stat": "unavailable",
+    "icat": "unavailable",
+    "volatility3": "unavailable_and_license_excluded",
+    "podman": "available"
+  },
+  "items": [
+    {
+      "path": "digital-corpora/sqlite/sqlite_forensic_corpus_v1.0.zip",
+      "bytes": 1423067,
+      "sha256": "cfe9bdb9c88f78b5410dc25ad36cf0b36e1baaec6094c8945c91f8aea2b358f4",
+      "signature": "zip",
+      "url": "https://downloads.digitalcorpora.org/corpora/sql/sqlite_forensic_corpus_v1.0.zip",
+      "terms": "Digital Corpora public-domain/open corpus terms per acquisition matrix",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "sqlite-corpus",
+      "workbench_status": "intake_verified_analysis_degraded"
+    },
+    {
+      "path": "digital-corpora/sqlite/sqlite_forensic_corpus_v2.0.zip",
+      "bytes": 5370116,
+      "sha256": "8d71ff0ca595716b60ca7b6e9f0c7789e4612383f230e3742c9fc06ad39e95d8",
+      "signature": "zip",
+      "url": "https://downloads.digitalcorpora.org/corpora/sql/sqlite_forensic_corpus_v2.0.zip",
+      "terms": "Digital Corpora public-domain/open corpus terms per acquisition matrix",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "sqlite-corpus",
+      "workbench_status": "intake_verified_analysis_degraded"
+    },
+    {
+      "path": "digital-corpora/nps-2010-emails/nps-2010-emails.E01",
+      "bytes": 518680,
+      "sha256": "c9ffd969954c2f9b9f97f459916c3d2e8755f596eda952c306ab3f9bc0d43bf1",
+      "signature": "ewf",
+      "url": "https://downloads.digitalcorpora.org/corpora/drives/nps-2010-emails/nps-2010-emails.E01",
+      "terms": "Digital Corpora NPS test image terms",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "ewf-email-disk",
+      "workbench_status": "signature_recognized_native_tools_unavailable"
+    },
+    {
+      "path": "digital-corpora/nps-2009-ntfs1/ntfs1-gen2.E01",
+      "bytes": 36083007,
+      "sha256": "2badead91bef56c80155d7731671ad1d93c08f32cd4ce17566fdf02d5769feea",
+      "signature": "ewf",
+      "url": "https://downloads.digitalcorpora.org/corpora/drives/nps-2009-ntfs1/ntfs1-gen2.E01",
+      "terms": "Digital Corpora NPS test image terms",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "ewf-ntfs",
+      "workbench_status": "signature_recognized_native_tools_unavailable"
+    },
+    {
+      "path": "digital-corpora/nps-2009-casper-rw/ubnist1.casper-rw.gen3.E01",
+      "bytes": 168365166,
+      "sha256": "f2ad970ab2c8ed41e2d26d0c7e821aaee0bb6fe71063ae17bea894306a8e55ff",
+      "signature": "ewf",
+      "url": "https://downloads.digitalcorpora.org/corpora/drives/nps-2009-casper-rw/ubnist1.casper-rw.gen3.E01",
+      "terms": "Digital Corpora NPS test image terms",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "ewf-linux-rw",
+      "workbench_status": "signature_recognized_native_tools_unavailable"
+    },
+    {
+      "path": "digital-corpora/nps-2009-canon2/nps-2009-canon2-gen6.E01",
+      "bytes": 31144390,
+      "sha256": "10483722d84e0cefcb693b11dea2d32dbd3ad2f06f8c9656688c8c730fe41579",
+      "signature": "ewf",
+      "url": "https://downloads.digitalcorpora.org/corpora/drives/nps-2009-canon2/nps-2009-canon2-gen6.E01",
+      "terms": "Digital Corpora NPS test image terms",
+      "publisher_hash_flag": true,
+      "publisher_hash_status": "not_independently_verified",
+      "capability_lane": "ewf-camera",
+      "workbench_status": "signature_recognized_native_tools_unavailable"
+    },
+    {
+      "path": "dftt/1-extend-part.zip",
+      "bytes": 167678,
+      "sha256": "771cc763798ed23d85f6362de4adff503bf83c33c56c5ac8dea689a3996c8ce3",
+      "signature": "zip",
+      "url": "https://downloads.sourceforge.net/project/dftt/Test%20Images/1_%20Extended%20Partition/1-extend-part.zip",
+      "terms": "DFTT GPL per acquisition matrix; local SHA-256 baseline",
+      "publisher_hash_flag": false,
+      "publisher_hash_status": "not_claimed",
+      "capability_lane": "partition-extended",
+      "workbench_status": "archive_verified_filesystem_tools_unavailable"
+    },
+    {
+      "path": "cfreds/memory-images.rar",
+      "bytes": 518372568,
+      "sha256": "9e1ba0de296a21fa606763e6bd207d741f06e3f23a19d2b6d507678ea516b5f8",
+      "signature": "rar",
+      "url": "https://cfreds-archive.nist.gov/mem/memory-images.rar",
+      "terms": "NIST/CFReDS public reference terms; local SHA-256 baseline",
+      "publisher_hash_flag": false,
+      "publisher_hash_status": "not_claimed",
+      "capability_lane": "memory-images",
+      "workbench_status": "archive_verified_memory_parser_unavailable"
+    },
+    {
+      "path": "cfreds/cfreds-2017-winreg_ugrd-nr.7z",
+      "bytes": 6151857,
+      "sha256": "7b68bc00c1c12744377e5a429d3e839a597ab228e94b5c2f8bfdd02abd779b67",
+      "signature": "7z",
+      "url": "https://cfreds-archive.nist.gov/winreg/cfreds-2017-winreg/cfreds-2017-winreg_ugrd-nr.7z",
+      "terms": "NIST/CFReDS public reference terms; local SHA-256 baseline",
+      "publisher_hash_flag": false,
+      "publisher_hash_status": "not_claimed",
+      "capability_lane": "windows-registry",
+      "workbench_status": "archive_verified_hive_parser_not_established"
+    }
+  ],
+  "limitations": [
+    "Publisher hash booleans are present for six Digital Corpora items, but no publisher digest values or detached sidecars exist in the acquisition directory.",
+    "Source manifest has no publisher-provided expected-size fields; observed sizes are the intake baseline.",
+    "Native libewf/Sleuth Kit/Volatility tooling is unavailable on the review host; structured filesystem and memory claims must remain degraded/unavailable.",
+    "Open PR #11 carries optional EWF/TSK/memory modules and forensic-tools lifecycle manifests; those modules are not on origin/main at review time.",
+    "Evidence binaries remain outside the repository and corpus-v1."
+  ],
+  "parent_report_corrections": [
+    {
+      "claim": "All 10 local SHA-256 values / register all 10 entries",
+      "correction": "Acquisition manifest contains 9 evidence items. Directory has 10 files only when counting the acquisition-manifest.json itself.",
+      "severity": "high"
+    },
+    {
+      "claim": "publisher_hash true for five Digital Corpora entries",
+      "correction": "Six Digital Corpora entries have publisher_hash=true.",
+      "severity": "medium"
+    }
+  ]
+}
